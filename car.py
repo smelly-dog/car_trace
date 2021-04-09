@@ -74,6 +74,14 @@ if __name__ == '__main__':
             lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
         pois = Model.POI(location[0], location[1])
         
+        projectionMatrix = [[p['location']] for p in pois]
+        for i in range(len(projectionMatrix)):
+            temp = projectionMatrix[i][0]
+            a1, a2 = temp.split(',')
+            longitude, latitude = float(a1), float(a2)
+            projectionMatrix[i] = [longitude, latitude]
+        #print(projectionMatrix)
+        proMatrixTensor = torch.tensor(projectionMatrix)
 
         if i == 1:
             a = input("test: ")
