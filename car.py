@@ -1,11 +1,21 @@
-import Model, torch
+import Model, torch, csv
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+#from itertools import istools
+from geopy.distance import geodesic
+
+def weatherIdx(month, day):
+        if month == 8:
+            return day - 1
+        return (day - 1) + 31
 
 class MyDataSet(Dataset):
     def __init__(self, path1, path2):
+        self.start, self.end = 0, 1001
+        #print(path1)
         with open(path1, encoding='utf-8') as f:
-            self.data = np.loadtxt(path1, dtype=str, delimiter=',', skiprows=1, usecols=(0,1,2,3,5,6,7))
+            #self.f = f
+            self.data = np.loadtxt(path1, encoding='utf-8', dtype=str, delimiter=',', skiprows=1, usecols=(0,1,2,3,5,6,7))
         #self.data = data 
         for i in range(423544):
             self.data[i][0] = float(self.data[i][0])
@@ -28,12 +38,10 @@ class MyDataSet(Dataset):
         self.weather = [Date, Weather]
         '''
 
-    def weatherIdx(self, month, day):
-        if month == 8:
-            return day - 1
-        return (day - 1) + 31
-
     def __getitem__(self, idx):
+        if idx > self.end:
+            self.load()
+
         user = self.data[idx][0]
         time1, time2 = self.data[idx][1].split(' ')
         startYear, startMonth, startDay = time1.split('/')
@@ -52,7 +60,7 @@ class MyDataSet(Dataset):
         startLocVector = torch.tensor([startYear, startMonth, startDay, startHour, startMiute, startSecond, self.data[idx][2], self.data[idx][3]])
         stopLocVector = torch.tensor([stopYear, stopMonth, stopDay, stopHour, stopMiute, stopSecond, self.data[idx][5], self.data[idx][6]])
         
-        weaIdx = self.weatherIdx(startMonth, startDay)
+        weaIdx = weatherIdx(startMonth, startDay)
         weather = torch.tensor([self.weather[weaIdx][1]])
 
         location = [self.data[idx][2], self.data[idx][3]]
@@ -64,24 +72,48 @@ class MyDataSet(Dataset):
         #总数据 423544行
         
 if __name__ == '__main__':
-    path1, path2 = './data/train.csv', './data/weather.csv'
+    path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\train.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
-    #lastUser, nextHid, periodHid, qHH = None, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
+    deepModel = Model.DeepJMT(8, 10)
+
     for i, data in enumerate(dataLoader):
         user, startLocVector, stopLocVector, weather, location = data
         if (lastUser is None) or (user != lastUser):
             lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
+            nodes = [location[0], location[1], weather[0], 0]
+        else:
+            nodes.append([location[0], location[1], weather[0], 0])
         pois = Model.POI(location[0], location[1])
         
         projectionMatrix = [[p['location']] for p in pois]
-        for i in range(len(projectionMatrix)):
+        Len = len(pois)
+        for i in range(Len):
             temp = projectionMatrix[i][0]
             a1, a2 = temp.split(',')
             longitude, latitude = float(a1), float(a2)
-            projectionMatrix[i] = [longitude, latitude]
+            projectionMatrix[i] = [longitude, latitude, weather[0], 0]
+        
         #print(projectionMatrix)
-        proMatrixTensor = torch.tensor(projectionMatrix)
+        Node = nodes.append(projectionMatrix)
+        Len = len(Node)
+
+        for i in range(Len):
+            Node[i][3] = geodesic((location[0], location[1]), (Node[i][0], Node[i][1])).m
+        
+        #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
+        nextHid, periodHid, qhh, aH, index = deepModel(
+            startLocVector,
+            nextHid,
+            location,
+            periodHid,
+            qhh,
+            aH,
+            len(nodes),
+            pois,
+            torch.tensor(Node),
+            torch.ones(Len, Len)
+        )
 
         if i == 1:
             a = input("test: ")

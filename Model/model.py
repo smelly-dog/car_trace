@@ -27,7 +27,7 @@ def timeCompare(time1, time2):
     return False
 
 class DeepJMT(torch.nn.Module):
-    def __init__(self, input_num, hidden_num, output_num):
+    def __init__(self, input_num, hidden_num):
         super(DeepJMT, self).__init__()
         '''
         input_num = 8
@@ -40,9 +40,10 @@ class DeepJMT(torch.nn.Module):
         self.GRUCell3 = torch.nn.GRUCell(input_num + 1, hidden_num)
         self.weight = torch.nn.Parameter(data = torch.randn(1, 1), requires_grad = True)
         self.Relu = torch.nn.ReLU()
-        self.GAT = DynamicNet.GAT(5, 5, 2, 0.2, 0.2, 4)#todo 补充GAT参数
+        self.GAT = DynamicNet.GAT(4, 4, 2, 0.2, 0.2, 4)
+        
         '''
-        longitude,latitude,weather,distance,effect
+        longitude, latitude, weather, distance
         '''
         self.scaling = 2
     
@@ -50,8 +51,8 @@ class DeepJMT(torch.nn.Module):
     def changeGAT(self, nodes, edges):
         self.add_module('GAT', DeepJMT.GAT(nodes, edges))
     """
-    def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, nodes, edges):
-        #传入参数都是tensor, location除外(list)
+    def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
+        #传入参数都是tensor, location除外(list), user(float)
         if nextHid is None:
             nextHid = torch.randn(1, self.hidden_size)
 
@@ -74,7 +75,7 @@ class DeepJMT(torch.nn.Module):
                 #hidHigh = nextHid
         #双层RNN编码历史轨迹
 
-        pois = POI(location[0], location[1])
+        #pois = POI(location[0], location[1])
         nextHidT = nextHid.t()
         #nextHidT(self.hidden_size * 1)
         dist = [1 for x in range(len(pois))]
@@ -129,7 +130,7 @@ class DeepJMT(torch.nn.Module):
         outGATState = self.GAT(nodes, edges)
         #GAT hidden_stata
 
-        projectionMatrix = [[x['location']] for x in pois]
+        projectionMatrix = [[p['location']] for p in pois]
         for i in range(len(projectionMatrix)):
             temp = projectionMatrix[i][0]
             a1, a2 = temp.split(',')
