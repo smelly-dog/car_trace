@@ -3,6 +3,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 #from itertools import istools
 from geopy.distance import geodesic
+import pandas as pd
 
 def weatherIdx(month, day):
         if month == 8:
@@ -11,12 +12,53 @@ def weatherIdx(month, day):
 
 class MyDataSet(Dataset):
     def __init__(self, path1, path2):
-        self.start, self.end = 0, 1001
-        #print(path1)
+        '''
         with open(path1, encoding='utf-8') as f:
             #self.f = f
-            self.data = np.loadtxt(path1, encoding='utf-8', dtype=str, delimiter=',', skiprows=1, usecols=(0,1,2,3,5,6,7))
-        #self.data = data 
+            self.data = np.loadtxt(
+                f, 
+                encoding='utf-8', 
+                dtype=str, 
+                skiprows=1, 
+            )
+        print(self.data[0:5])
+
+        '''
+
+        data = pd.read_csv(
+            path1,
+            names=[
+                'ID',
+                'startTime',
+                'startLon',
+                'startLat',
+                'startPOS',
+                'stopTime',
+                'stopLon',
+                'stopLat',
+                'stopPOS'
+            ],
+            dtype={
+                'ID': str,
+                'startTime': str,
+                'startLon': str,
+                'startLat': str,
+                'startPOS': str,
+                'stopTime': str,
+                'stopLon': str,
+                'stopLat': str,
+                'stopPOS': str
+            }
+        )
+
+        self.data = [
+            [row['ID'], row['startTime'], row['startLon'], row['startLat'], row['stopTime'], row['stopLon'], row['stopLat']] for index, row in data.iterrows()
+        ]
+
+        print(self.data[0:5])
+
+        a = input("wait")
+
         for i in range(423544):
             self.data[i][0] = float(self.data[i][0])
             self.data[i][2] = float(self.data[i][2])
@@ -72,7 +114,7 @@ class MyDataSet(Dataset):
         #总数据 423544行
         
 if __name__ == '__main__':
-    path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\train.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
+    path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
     deepModel = Model.DeepJMT(8, 10)
