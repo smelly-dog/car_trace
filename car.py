@@ -1,9 +1,10 @@
-import Model, torch, csv
+import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 #from itertools import istools
 from geopy.distance import geodesic
 import pandas as pd
+from Model.model import DeepJMTModel, POI
 
 def weatherIdx(month, day):
         if month == 8:
@@ -48,7 +49,8 @@ class MyDataSet(Dataset):
                 'stopLon': str,
                 'stopLat': str,
                 'stopPOS': str
-            }
+            },
+            skiprows=1
         )
 
         self.data = [
@@ -117,7 +119,7 @@ if __name__ == '__main__':
     path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
-    deepModel = Model.DeepJMT(8, 10)
+    deepModel = DeepJMTModel(8, 10)
 
     for i, data in enumerate(dataLoader):
         user, startLocVector, stopLocVector, weather, location = data
@@ -126,7 +128,7 @@ if __name__ == '__main__':
             nodes = [location[0], location[1], weather[0], 0]
         else:
             nodes.append([location[0], location[1], weather[0], 0])
-        pois = Model.POI(location[0], location[1])
+        pois = POI(location[0], location[1])
         
         projectionMatrix = [[p['location']] for p in pois]
         Len = len(pois)

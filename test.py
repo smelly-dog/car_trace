@@ -8,5 +8,5 @@ if __name__ == '__main__':
         temp = projectionMatrix[i][0]
         a1, a2 = temp.split(',')
         longitude, latitude = float(a1), float(a2)
-        projectionMatrix[i] = [longitude, latitude]
+        projectionMatrix[i] = [longitude, laatitude]
     print(projectionMatrix)
