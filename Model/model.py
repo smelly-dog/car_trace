@@ -28,7 +28,7 @@ def timeCompare(time1, time2):
 
 class DeepJMTModel(torch.nn.Module):
     def __init__(self, input_num, hidden_num):
-        super(DeepJMT, self).__init__()
+        super(DeepJMTModel, self).__init__()
         '''
         input_num = 8
         year/month/day/hour/minute/second/longitude/latitude 
