@@ -1,6 +1,5 @@
 import torch, torchvision, requests 
-import json, datetime, math, Model.DynamicNeT.GAT.GAT.GAT
-from Model.DynamicNet.GAT.GAT.GAT import GAT 
+import json, datetime, math, DynamicNet.GAT
 
 def POI(longitude, latitude):
     URL = 'https://restapi.amap.com/v3/geocode/regeo?parameters'
@@ -41,7 +40,7 @@ class DeepJMTModel(torch.nn.Module):
         self.GRUCell3 = torch.nn.GRUCell(input_num + 1, hidden_num)
         self.weight = torch.nn.Parameter(data = torch.randn(1, 1), requires_grad = True)
         self.Relu = torch.nn.ReLU()
-        self.GAT = GAT(4, 4, 2, 0.2, 0.2, 4)
+        self.GAT = DynamicNet.GAT.GAT(4, 4, 2, 0.2, 0.2, 4)
         
         '''
         longitude, latitude, weather, distance
