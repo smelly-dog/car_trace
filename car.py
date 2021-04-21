@@ -120,17 +120,15 @@ class MyDataSet(Dataset):
         stopHour, stopMiute, stopSecond = float(stopHour), float(stopMiute), float(stopSecond)
         #下车year month day hour minute second
 
-        startLocVector = torch.tensor([startYear, startMonth, startDay, startHour, startMiute, startSecond, self.data[idx][2], self.data[idx][3]])
-        stopLocVector = torch.tensor([stopYear, stopMonth, float(stopDay), stopHour, stopMiute, stopSecond, self.data[idx][5], self.data[idx][6]])
+        startLocVector = [startYear, startMonth, startDay, startHour, startMiute, startSecond, self.data[idx][2], self.data[idx][3]]
+        stopLocVector = [stopYear, stopMonth, float(stopDay), stopHour, stopMiute, stopSecond, self.data[idx][5], self.data[idx][6]]
         
         weaIdx = weatherIdx(startMonth, startDay)
         weather = [self.Wea[int(weaIdx)]]
-        
-        weather = torch.tensor(weather)
 
         location = [self.data[idx][2], self.data[idx][3]]
 
-        return user, startLocVector, stopLocVector, weather, location
+        return torch.tensor(user), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
         return 400000
@@ -144,28 +142,65 @@ if __name__ == '__main__':
     lastUser = None
     for i, data in enumerate(dataLoader):
         user, startLocVector, stopLocVector, weather, location = data
+        '''
+        print("user {} and startLocVector {}".format(user.size(), startLocVector.size()))
+        print("location {}".format(location.size()))
+        '''
+        
         if (lastUser is None) or (user != lastUser):
             lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
-            nodes = [location[0], location[1], weather[0], 0]
+            nodes = [[
+                float(format(location[0][0], '.6f')),
+                float(format(location[0][1], '.6f')),
+                float(format(weather[0][0], '.6f')),
+                0.0
+            ]]
         else:
-            nodes.append([location[0], location[1], weather[0], 0])
-        pois = POI(location[0], location[1])
-        
-        projectionMatrix = [[p['location']] for p in pois]
+            nodes.append([[
+                float(format(location[0][0], '.6f')),
+                float(format(location[0][1], '.6f')),
+                float(format(weather[0][0], '.6f')),
+                0.0
+            ]])
+
+        pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
+
+        '''
+        print("location {} {}".format(format(location[0][0], '.6f'), format(location[0][1], '.6f')))
+        print(pois)
+        '''
+
+        Node = nodes[:]
+        projectionMatrix = [[p['location'], p['distance']] for p in pois]
         Len = len(pois)
+
         for i in range(Len):
             temp = projectionMatrix[i][0]
             a1, a2 = temp.split(',')
-            longitude, latitude = float(a1), float(a2)
-            projectionMatrix[i] = [longitude, latitude, weather[0], 0]
+            longitude, latitude, distance = float(a1), float(a2), float(projectionMatrix[i][1])
+            projectionMatrix[i] = [longitude, latitude, float(format(weather[0][0], '.6f')), distance]
         
-        #print(projectionMatrix)
-        Node = nodes.append(projectionMatrix)
-        Len = len(Node)
+        for temp in projectionMatrix:
+            Node.append(temp)
 
-        for i in range(Len):
-            Node[i][3] = geodesic((location[0], location[1]), (Node[i][0], Node[i][1])).m
-        
+        '''
+
+        for i in range(len(nodes)):
+            try:
+                Node[i][3] = geodesic(
+                    (
+                        float(format(location[0][1], '.6f')),
+                        float(format(location[0][0], '.6f'))
+                    ),
+                    (Node[i][1], Node[i][0])
+                ).m
+            except ValueError:
+                print(Node[i][0])
+                print(Node[i][1])
+                break
+        '''
+        print(Node)
+
         #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
         nextHid, periodHid, qhh, aH, index = deepModel(
             startLocVector,
