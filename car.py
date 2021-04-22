@@ -128,7 +128,7 @@ class MyDataSet(Dataset):
 
         location = [self.data[idx][2], self.data[idx][3]]
 
-        return torch.tensor(user), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
+        return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
         return 400000
@@ -139,9 +139,10 @@ if __name__ == '__main__':
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
     deepModel = DeepJMTModel(8, 10)
-    lastUser = None
+    lastUser, lastTime = None, None
     for i, data in enumerate(dataLoader):
         user, startLocVector, stopLocVector, weather, location = data
+        time = startLocVector[0:6]
         '''
         print("user {} and startLocVector {}".format(user.size(), startLocVector.size()))
         print("location {}".format(location.size()))
@@ -155,6 +156,7 @@ if __name__ == '__main__':
                 float(format(weather[0][0], '.6f')),
                 0.0
             ]]
+            lastTime = None
         else:
             nodes.append([[
                 float(format(location[0][0], '.6f')),
@@ -199,21 +201,28 @@ if __name__ == '__main__':
                 print(Node[i][1])
                 break
         '''
-        print(Node)
+        user = float(format(user[0][0], '.6f'))
 
         #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
         nextHid, periodHid, qhh, aH, index = deepModel(
-            startLocVector,
-            nextHid,
-            location,
-            periodHid,
-            qhh,
-            aH,
-            len(nodes),
-            pois,
-            torch.tensor(Node),
-            torch.ones(Len, Len)
+            x=startLocVector,
+            nextHid=nextHid,
+            lastTime=lastTime,
+            user=user,
+            location=[
+                float(format(location[0][1], '.6f')),
+                float(format(location[0][0], '.6f'))
+            ],
+            periodHid=periodHid,
+            qhh=qhh,
+            aH=aH,
+            pre=len(nodes),
+            pois=pois,
+            nodes=torch.tensor(Node),
+            edges=torch.ones([len(Node), len(Node)])
         )
+
+        lastTime = time
 
         if i == 1:
             a = input("test: ")

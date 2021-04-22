@@ -51,11 +51,27 @@ class DeepJMTModel(torch.nn.Module):
     def changeGAT(self, nodes, edges):
         self.add_module('GAT', DeepJMT.GAT(nodes, edges))
     """
-    def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
+    def forward(self, x, nextHid, lastTime, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
         #传入参数都是tensor, location除外(list), user(float)
-        if nextHid is None:
-            nextHid = torch.randn(1, self.hidden_size)
+        #print("x {}".format(x.size()))
+        if (nextHid is None) or ( (lastTime is None) or (compare(x[0][0:6], lastTime)) ):
+            if nextHid is None:
+                nextHid = torch.randn(1, self.hidden_size)
+            nextHid = self.GRUCell1(x, nextHid)
+        else:
+            nextHid = self.GRUCell2(
+                    torch.cat(
+                        (
+                            torch.tensor([[user]]),
+                            x
+                        ),
+                        dim=1
+                    ),
+                    nextHid
+                )
 
+        
+        '''
         for i in range(len(x)):
             timeLocVector = x[i]
             if i == 0 or compare(x[i - 1][0:6], x[i][0:6]):
@@ -74,47 +90,62 @@ class DeepJMTModel(torch.nn.Module):
                 )
                 #hidHigh = nextHid
         #双层RNN编码历史轨迹
+        '''
+        
 
         #pois = POI(location[0], location[1])
         nextHidT = nextHid.t()
         #nextHidT(self.hidden_size * 1)
         dist = [1 for x in range(len(pois))]
-        qLis = torch.tensor(self.hidden_size, 2)
+        qLis = torch.randn(self.hidden_size, 2)
         allwe = torch.zeros(self.hidden_size, 2)
         for i in range(len(pois)):
             #poi = pois[i]
-            longitude, latitude = pois[i].split(',')
+            longitude, latitude = pois[i]['location'].split(',')
             longitude, latitude = float(longitude), float(latitude)
             eLi = torch.tensor([longitude, latitude])
             qLis = nextHidT * self.weight * eLi
-            distance = math.exp(-1 * (pois[i]['distance'] / self.scaling))
+            distance = math.exp(-1 * (float(pois[i]['distance']) / self.scaling))
             allwe = allwe + torch.exp(qLis * distance)
 
         cL = torch.zeros(self.hidden_size, 1)
         for i in range(len(pois)):
             #poi = pois[i]
-            longitude, latitude = pois[i].split(',')
+            longitude, latitude = pois[i]['location'].split(',')
             longitude, latitude = float(longitude), float(latitude)
             eLi = torch.tensor([longitude, latitude])
             qLis = nextHidT * self.weight * eLi
-            distance = math.exp(-1 * (pois[i]['distance'] / self.scaling))
-            temp = torch.div(
-                torch.exp(qLis * distance),
-                allwe
+            #print(qLis)
+            #distance = math.exp(-1 * (float(pois[i]['distance'] / self.scaling))
+            distance = math.exp(
+                -1 * (
+                    float( pois[i]['distance'] ) / self.scaling
+                )
             )
+            #print("hello")
+            a = qLis * distance
+            t1 = torch.exp(a)
+    
+            t = torch.div(t1, allwe)
             #temp(self.hiddenze * 2)
-            cL = cL + temp * eLi.t()
+            cL = cL + t * eLi.t()
         #空间上下文提取器  
 
         Length = len(x)
         if periodHid is None:
             periodHid = torch.randn(1, self.hidden_size)
         timeLocVector = x[-1]
+
+        '''
+        print(timeLocVector.shape)
+        print(torch.unsqueeze(timeLocVector, 0).shape)
+        '''
+
         periodHid = self.GRUCell3(
             torch.cat(
                 (
-                    torch.tensor([user]),
-                    timeLocVector
+                    torch.tensor([[user]]),
+                    torch.unsqueeze(timeLocVector, 0)
                 ),
                 dim=1
             ),
@@ -138,14 +169,24 @@ class DeepJMTModel(torch.nn.Module):
             projectionMatrix[i] = [longitude, latitude]
         #print(projectionMatrix)
         proMatrixTensor = torch.tensor(projectionMatrix)
+
+        '''
+        print("nextHid {}".format(nextHid.shape))
+        print("cL.t() {}".format(cL.t().shape))
+        print("cP.t() {}".format(cP.t().shape))
+        '''
+
         mL = torch.cat(
             (nextHid, cL.t(), cP.t()),
-            dim=1
+            dim=0
         )
+
         #mL(1, 3 * self.hidden_size)
         deepLoc = torch.randn(len(pois), 2, 3 * self.hidden_size)
         for i in range(len(proMatrixTensor)):
             predictionLoc = proMatrixTensor[i]
+            print("pred {}".format(predictionLoc.t().shape))
+            print("mL {}".format(mL.shape))
             deepLoc[i] = predictionLoc.t() * mL
         #DeepJMT 地点预测
 
