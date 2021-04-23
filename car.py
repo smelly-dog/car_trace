@@ -110,21 +110,18 @@ class MyDataSet(Dataset):
         '''
         user = self.data[idx][0]
         time1, time2 = self.data[idx][1].split(' ')
-        startYear, startMonth, startDay = time1.split('/')
+        #print("time1 {} time2 {} unpack{}".format(time1, time2, time1.split('-')))
+        startYear, startMonth, startDay = time1.split('-')
         startYear, startMonth, startDay = float(startYear), float(startMonth), float(startDay)
-        startHour, startMiute = time2.split(':')
-        startSecond = 0.0
-        #临时加秒
+        startHour, startMiute, startSecond = time2.split(':')
         startHour, startMiute, startSecond = float(startHour), float(startMiute), float(startSecond)
         #上车year month day hour minute second
 
         time1, time2 = self.data[idx][4].split(' ')
-        stopYear, stopMonth, stopDay = time1.split('/')
+        stopYear, stopMonth, stopDay = time1.split('-')
         stopYear, stopMonth, stoptDay = float(stopYear), float(stopMonth), float(stopDay)
 
-        stopHour, stopMiute = time2.split(':')
-        stopSecond = 0.0
-        #临时加秒
+        stopHour, stopMiute, stopSecond = time2.split(':')
         stopHour, stopMiute, stopSecond = float(stopHour), float(stopMiute), float(stopSecond)
         #下车year month day hour minute second
 
@@ -139,7 +136,7 @@ class MyDataSet(Dataset):
         return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
-        return len(self.data)
+        return 1000
         #总数据 423544行
 
 def haversine_dis(lon1, lat1, lon2, lat2):
@@ -156,9 +153,9 @@ def haversine_dis(lon1, lat1, lon2, lat2):
 
 def correctIndex(pois, stopLocVector):
     longitude, latitude, idx = stopLocVector[0][-2], stopLocVector[0][-1], 0
-    idx, MM = 0, 0
-    for i in range(len(pois)):
-        poi = pois[i]
+    idx, MM, distance = 0, 0, [0 for x in range(len(pois))]
+    for j in range(len(pois)):
+        poi = pois[j]
         location = poi['location']
         lon, lat = location.split(',')
         lon, lat = float(lon), float(lat)
@@ -172,36 +169,39 @@ def correctIndex(pois, stopLocVector):
         #value = geodesic((lat, lon), (latitude, longitude)).m
         if value < 0:
             value = value * -1
-        
+        distance[j] = value
         #print(value)
 
-        if i == 0:
+        if j == 0:
             MM = value
         else:
             if value < MM:
-                idx, MM = i, value
+                idx, MM = j, value
     
-    return idx, MM
+    return idx, MM, distance
 
 def run(train=False):
-    path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\test.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
+    path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
     deepModel = DeepJMTModel(8, 10)
     lastUser, lastTime = None, None
-    loss, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
+    lossFun, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
+    modelPath = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\DeepModel\\save.pt'
+    #deepModel = torch.load(modelPath)
 
     if train:
         deepModel.train()
     else:
-        model.eval()
+        deepModel.eval()
 
     total, correct = 0, 0
 
     for t in range(100):
         #epoch 100
-        epoch, right = 0, 0
+        All, right = 0, 0
         for i, data in enumerate(dataLoader):
+            #print(i)
             user, startLocVector, stopLocVector, weather, location = data
             time = startLocVector[0:6]
 
@@ -230,11 +230,11 @@ def run(train=False):
             projectionMatrix = [[p['location'], p['distance']] for p in pois]
             Len = len(pois)
 
-            for i in range(Len):
-                temp = projectionMatrix[i][0]
+            for j in range(Len):
+                temp = projectionMatrix[j][0]
                 a1, a2 = temp.split(',')
-                longitude, latitude, distance = float(a1), float(a2), float(projectionMatrix[i][1])
-                projectionMatrix[i] = [longitude, latitude, float(format(weather[0][0], '.6f')), distance]
+                longitude, latitude, distance = float(a1), float(a2), float(projectionMatrix[j][1])
+                projectionMatrix[j] = [longitude, latitude, float(format(weather[0][0], '.6f')), distance]
             
             for temp in projectionMatrix:
                 Node.append(temp)
@@ -262,21 +262,49 @@ def run(train=False):
             )
             lastTime = time
             
-            print("poi {}".format(len(pois)))
-            print("raw {}".format(raw.shape))
-            correctIdx, MM = correctIndex(pois=pois, stopLocVector=stopLocVector)
-            '''
+            #print("poi {}".format(len(pois)))
+            #print("raw {}".format(raw.shape))
+            correctIdx, MM, distance = correctIndex(pois=pois, stopLocVector=stopLocVector)
             print("correctIdx {}".format(correctIdx))
-            print("MM {}".format(MM))
-            '''
-            if correctIdx in  index:
-                right  = right + 1
-            epoch = epoch + 1
+            target, add = torch.zeros(len(pois), dtype=torch.long), False
 
+            All = All + 1
 
-            a = input("wait")
-                
+            for idx in index:
+                left = distance[correctIdx] - distance[idx]
+                if left < 0:
+                    left = left * -1
+                if left < 10:
+                    add = True
+            
+            if add:
+                right = right + 1
 
+            if train:
+                #训练
+                target[correctIdx] = 1
+                for idx in range(len(pois)):
+                    left = distance[correctIdx] - distance[idx]
+                    if left < 0:
+                        left = left * -1
+                    if left < 10:
+                        target[idx] = 1
+                loss = lossFun(input=raw, target=target)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            if i % 20 == 0:
+                print("All {}  right {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, i, right / All))
+                torch.save(deepModel, modelPath)
+                break
+        
+        total, correct = total + All, correct + right
+        print("total {} correct {} 当前epoch {} 总正确率{}".format(total, correct, t, correct / total))
+        
+        torch.save(deepModel, modelPath)
+        break
+        a = input("wait")
 
 
 if __name__ == '__main__':

@@ -3,8 +3,8 @@ import torch.nn as nn
 import math
 
 loss = nn.CrossEntropyLoss()
-input = torch.randn(1, 5, requires_grad= True)
-target = torch.empty(1, dtype = torch.long).random_(5)
+input = torch.randn(25, 30, requires_grad= True)
+target = torch.zeros(25, dtype = torch.long)
 output = loss(input, target)
 
 print("input {}".format(input.shape))
