@@ -20,9 +20,11 @@ def POI(longitude, latitude):
     return state['regeocode']['pois']
 
 def timeCompare(time1, time2):
-    lastTime = datetime(time1[0], time1[1], time1[2], time1[3], time1[4], time1[5])
-    now = datetime(time2[0], time2[1], time2[2], time2[3], time2[4], time2[5])
-    if (now - lastTime).hour < 8:
+    #print(time1)
+    #print(time2)
+    lastTime = datetime.datetime(time1[0], time1[1], time1[2], time1[3], time1[4], time1[5])
+    now = datetime.datetime(time2[0], time2[1], time2[2], time2[3], time2[4], time2[5])
+    if ((now - lastTime).seconds / 3600) < 8:
         return True
     return False
 
@@ -38,7 +40,7 @@ class DeepJMTModel(torch.nn.Module):
         self.GRUCell1 = torch.nn.GRUCell(input_num, hidden_num)
         self.GRUCell2 = torch.nn.GRUCell(input_num + 1, hidden_num)
         self.GRUCell3 = torch.nn.GRUCell(input_num + 1, hidden_num)
-        self.weight = torch.nn.Parameter(data = torch.randn(1, 1), requires_grad = True)
+        self.weight = torch.nn.Parameter(data = torch.randn(1, 1))
         self.Relu = torch.nn.ReLU()
         self.GAT = DynamicNet.GAT.GAT(4, 4, 2, 0.2, 0.2, 4)
         #self.softmax = torch.nn.Softmax()
@@ -55,7 +57,7 @@ class DeepJMTModel(torch.nn.Module):
     def forward(self, x, nextHid, lastTime, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
         #传入参数都是tensor, location除外(list), user(float)
         #print("x {}".format(x.size()))
-        if (nextHid is None) or ( (lastTime is None) or (compare(x[0][0:6], lastTime)) ):
+        if (nextHid is None) or ( (lastTime is None) or (timeCompare(lastTime[0], x[0][0:6])) ):
             if nextHid is None:
                 nextHid = torch.randn(1, self.hidden_size)
             nextHid = self.GRUCell1(x, nextHid)

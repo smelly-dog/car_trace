@@ -184,10 +184,12 @@ def run(train=False):
     path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
-    deepModel = DeepJMTModel(8, 10)
+    #deepModel = DeepJMTModel(8, 10)
+    modelPath = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\DeepModel\\save.pt'
+    deepModel = torch.load(modelPath)
     lastUser, lastTime = None, None
     lossFun, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
-    modelPath = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\DeepModel\\save.pt'
+    #modelPath = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\DeepModel\\save.pt'
     #deepModel = torch.load(modelPath)
 
     if train:
@@ -291,20 +293,20 @@ def run(train=False):
                         target[idx] = 1
                 loss = lossFun(input=raw, target=target)
                 optimizer.zero_grad()
-                loss.backward()
+                loss.backward(retain_graph=True)
                 optimizer.step()
 
             if i % 20 == 0:
-                print("All {}  right {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, i, right / All))
+                print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
                 torch.save(deepModel, modelPath)
-                break
+               # break
         
         total, correct = total + All, correct + right
         print("total {} correct {} 当前epoch {} 总正确率{}".format(total, correct, t, correct / total))
         
         torch.save(deepModel, modelPath)
-        break
-        a = input("wait")
+        #break
+        #a = input("wait")
 
 
 if __name__ == '__main__':
