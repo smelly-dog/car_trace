@@ -2,9 +2,11 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 #from itertools import istools
-from geopy.distance import geodesic
+#from geopy.distance import geodesic
+from math import radians,sin,cos,asin,sqrt
 import pandas as pd
 from Model.model import DeepJMTModel, POI
+from geopy.distance import geodesic
 
 def weatherIdx(month, day):
         if month == 8:
@@ -139,25 +141,72 @@ class MyDataSet(Dataset):
     def __len__(self):
         return len(self.data)
         #总数据 423544行
+
+def haversine_dis(lon1, lat1, lon2, lat2):
+    #将十进制转为弧度
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    
+    #haversine公式
+    d_lon = lon2 - lon1
+    d_lat = lat2 - lat1
+    aa = sin(d_lat/2)**2 + cos(lat1)*cos(lat2)*sin(d_lon/2)**2
+    c = 2 * asin(sqrt(aa))
+    r = 6371 # 地球半径，千米
+    return c*r*1000
+
+def correctIndex(pois, stopLocVector):
+    longitude, latitude, idx = stopLocVector[0][-2], stopLocVector[0][-1], 0
+    idx, MM = 0, 0
+    for i in range(len(pois)):
+        poi = pois[i]
+        location = poi['location']
+        lon, lat = location.split(',')
+        lon, lat = float(lon), float(lat)
         
-if __name__ == '__main__':
+        value = haversine_dis(
+            min(lon, longitude),
+            min(lat, latitude),
+            max(lon, longitude),
+            max(lat, latitude)
+        )
+        #value = geodesic((lat, lon), (latitude, longitude)).m
+        if value < 0:
+            value = value * -1
+        
+        #print(value)
+
+        if i == 0:
+            MM = value
+        else:
+            if value < MM:
+                idx, MM = i, value
+    
+    return idx, MM
+
+def run(train=False):
     path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\test.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
     deepModel = DeepJMTModel(8, 10)
     lastUser, lastTime = None, None
+    loss, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
+
+    if train:
+        deepModel.train()
+    else:
+        model.eval()
+
+    total, correct = 0, 0
+
     for t in range(100):
         #epoch 100
+        epoch, right = 0, 0
         for i, data in enumerate(dataLoader):
             user, startLocVector, stopLocVector, weather, location = data
             time = startLocVector[0:6]
 
-            '''
-            print("user {} and startLocVector {}".format(user.size(), startLocVector.size()))
-            print("location {}".format(location.size()))
-            '''
             
-            if (lastUser is None) or (user != lastUser):
+            if (i == 0) or (lastUser is None) or (user != lastUser):
                 lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
                 nodes = [[
                     float(format(location[0][0], '.6f')),
@@ -167,19 +216,15 @@ if __name__ == '__main__':
                 ]]
                 lastTime = None
             else:
-                nodes.append([[
+                nodes.append([
                     float(format(location[0][0], '.6f')),
                     float(format(location[0][1], '.6f')),
                     float(format(weather[0][0], '.6f')),
                     0.0
-                ]])
+                ])
 
             pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
 
-            '''
-            print("location {} {}".format(format(location[0][0], '.6f'), format(location[0][1], '.6f')))
-            print(pois)
-            '''
 
             Node = nodes[:]
             projectionMatrix = [[p['location'], p['distance']] for p in pois]
@@ -194,26 +239,11 @@ if __name__ == '__main__':
             for temp in projectionMatrix:
                 Node.append(temp)
 
-            '''
-
-            for i in range(len(nodes)):
-                try:
-                    Node[i][3] = geodesic(
-                        (
-                            float(format(location[0][1], '.6f')),
-                            float(format(location[0][0], '.6f'))
-                        ),
-                        (Node[i][1], Node[i][0])
-                    ).m
-                except ValueError:
-                    print(Node[i][0])
-                    print(Node[i][1])
-                    break
-            '''
             user = float(format(user[0][0], '.6f'))
 
             #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
-            nextHid, periodHid, qhh, aH, index = deepModel(
+            #print(Node)
+            nextHid, periodHid, qhh, aH, index, raw = deepModel(
                 x=startLocVector,
                 nextHid=nextHid,
                 lastTime=lastTime,
@@ -230,6 +260,26 @@ if __name__ == '__main__':
                 nodes=torch.tensor(Node),
                 edges=torch.ones([len(Node), len(Node)])
             )
-
             lastTime = time
+            
+            print("poi {}".format(len(pois)))
+            print("raw {}".format(raw.shape))
+            correctIdx, MM = correctIndex(pois=pois, stopLocVector=stopLocVector)
+            '''
+            print("correctIdx {}".format(correctIdx))
+            print("MM {}".format(MM))
+            '''
+            if correctIdx in  index:
+                right  = right + 1
+            epoch = epoch + 1
+
+
+            a = input("wait")
+                
+
+
+
+if __name__ == '__main__':
+    run(train=True)
+    
 

@@ -7,7 +7,7 @@ def POI(longitude, latitude):
     parameters = {
         'location': location,
         'key': '8c9b55944852c98366d685d8894d74a0',
-        'radius': '1000',
+        'radius': '3000',
         'extensions': 'all',
         'batch': 'false',
         'roadlevel': '0',
@@ -41,6 +41,7 @@ class DeepJMTModel(torch.nn.Module):
         self.weight = torch.nn.Parameter(data = torch.randn(1, 1), requires_grad = True)
         self.Relu = torch.nn.ReLU()
         self.GAT = DynamicNet.GAT.GAT(4, 4, 2, 0.2, 0.2, 4)
+        #self.softmax = torch.nn.Softmax()
         
         '''
         longitude, latitude, weather, distance
@@ -213,7 +214,8 @@ class DeepJMTModel(torch.nn.Module):
             '''
         #DeepJMT 地点预测
 
-        anw = torch.randn(1, len(pois))
+        anw = torch.zeros(1, len(pois))
+        raw = torch.randn(len(pois), 3 * self.hidden_size)
         for i in range(len(pois)):
             outGAT = torch.unsqueeze(outGATState[i + pre], 0)
             temp = outGAT @ deepLoc[i]
@@ -222,14 +224,17 @@ class DeepJMTModel(torch.nn.Module):
             outGAT = (1, 2)
             temp = (1, 3 * self.hidden_size)
             '''
-            anw[0][i] = torch.max(temp)
-        anw = torch.nn.functional.softmax(anw[0], dim=0)
+            anw[0][i] = torch.max(input=temp[0])
+            raw[i] = temp[0]
+            
+        softAnw = torch.nn.functional.softmax(anw[0], dim=0)
         #print("anw {}".format(anw.shape))
         #print(anw)
-        value, index = torch.topk(input=anw, k=5)
+        value, index = torch.topk(input=softAnw, k=5)
         #结合DeepJMT和GAT
+        #print("once end")
 
-        return nextHid, periodHid, qhh, aH, index
+        return nextHid, periodHid, qhh, aH, index, raw
 
 
         
