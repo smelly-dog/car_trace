@@ -57,8 +57,10 @@ class MyDataSet(Dataset):
             [row['ID'], row['startTime'], row['startLon'], row['startLat'], row['stopTime'], row['stopLon'], row['stopLat']] for index, row in data.iterrows()
         ]
 
+        '''
         print("data")
         print(self.data[0:5])
+        '''
 
         for i in range(len(self.data)):
             self.data[i][0] = float(self.data[i][0])
@@ -100,6 +102,10 @@ class MyDataSet(Dataset):
         '''
 
     def __getitem__(self, idx):
+        '''
+        print("idx {}".format(idx))
+        print(len(self.data))
+        '''
         user = self.data[idx][0]
         time1, time2 = self.data[idx][1].split(' ')
         startYear, startMonth, startDay = time1.split('/')
@@ -131,7 +137,7 @@ class MyDataSet(Dataset):
         return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
-        return 400000
+        return len(self.data)
         #总数据 423544行
         
 if __name__ == '__main__':
@@ -140,89 +146,90 @@ if __name__ == '__main__':
     dataLoader = DataLoader(dataset=dataSet)
     deepModel = DeepJMTModel(8, 10)
     lastUser, lastTime = None, None
-    for i, data in enumerate(dataLoader):
-        user, startLocVector, stopLocVector, weather, location = data
-        time = startLocVector[0:6]
-        '''
-        print("user {} and startLocVector {}".format(user.size(), startLocVector.size()))
-        print("location {}".format(location.size()))
-        '''
-        
-        if (lastUser is None) or (user != lastUser):
-            lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
-            nodes = [[
-                float(format(location[0][0], '.6f')),
-                float(format(location[0][1], '.6f')),
-                float(format(weather[0][0], '.6f')),
-                0.0
-            ]]
-            lastTime = None
-        else:
-            nodes.append([[
-                float(format(location[0][0], '.6f')),
-                float(format(location[0][1], '.6f')),
-                float(format(weather[0][0], '.6f')),
-                0.0
-            ]])
+    for t in range(100):
+        #epoch 100
+        for i, data in enumerate(dataLoader):
+            user, startLocVector, stopLocVector, weather, location = data
+            time = startLocVector[0:6]
 
-        pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
+            '''
+            print("user {} and startLocVector {}".format(user.size(), startLocVector.size()))
+            print("location {}".format(location.size()))
+            '''
+            
+            if (lastUser is None) or (user != lastUser):
+                lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
+                nodes = [[
+                    float(format(location[0][0], '.6f')),
+                    float(format(location[0][1], '.6f')),
+                    float(format(weather[0][0], '.6f')),
+                    0.0
+                ]]
+                lastTime = None
+            else:
+                nodes.append([[
+                    float(format(location[0][0], '.6f')),
+                    float(format(location[0][1], '.6f')),
+                    float(format(weather[0][0], '.6f')),
+                    0.0
+                ]])
 
-        '''
-        print("location {} {}".format(format(location[0][0], '.6f'), format(location[0][1], '.6f')))
-        print(pois)
-        '''
+            pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
 
-        Node = nodes[:]
-        projectionMatrix = [[p['location'], p['distance']] for p in pois]
-        Len = len(pois)
+            '''
+            print("location {} {}".format(format(location[0][0], '.6f'), format(location[0][1], '.6f')))
+            print(pois)
+            '''
 
-        for i in range(Len):
-            temp = projectionMatrix[i][0]
-            a1, a2 = temp.split(',')
-            longitude, latitude, distance = float(a1), float(a2), float(projectionMatrix[i][1])
-            projectionMatrix[i] = [longitude, latitude, float(format(weather[0][0], '.6f')), distance]
-        
-        for temp in projectionMatrix:
-            Node.append(temp)
+            Node = nodes[:]
+            projectionMatrix = [[p['location'], p['distance']] for p in pois]
+            Len = len(pois)
 
-        '''
+            for i in range(Len):
+                temp = projectionMatrix[i][0]
+                a1, a2 = temp.split(',')
+                longitude, latitude, distance = float(a1), float(a2), float(projectionMatrix[i][1])
+                projectionMatrix[i] = [longitude, latitude, float(format(weather[0][0], '.6f')), distance]
+            
+            for temp in projectionMatrix:
+                Node.append(temp)
 
-        for i in range(len(nodes)):
-            try:
-                Node[i][3] = geodesic(
-                    (
-                        float(format(location[0][1], '.6f')),
-                        float(format(location[0][0], '.6f'))
-                    ),
-                    (Node[i][1], Node[i][0])
-                ).m
-            except ValueError:
-                print(Node[i][0])
-                print(Node[i][1])
-                break
-        '''
-        user = float(format(user[0][0], '.6f'))
+            '''
 
-        #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
-        nextHid, periodHid, qhh, aH, index = deepModel(
-            x=startLocVector,
-            nextHid=nextHid,
-            lastTime=lastTime,
-            user=user,
-            location=[
-                float(format(location[0][1], '.6f')),
-                float(format(location[0][0], '.6f'))
-            ],
-            periodHid=periodHid,
-            qhh=qhh,
-            aH=aH,
-            pre=len(nodes),
-            pois=pois,
-            nodes=torch.tensor(Node),
-            edges=torch.ones([len(Node), len(Node)])
-        )
+            for i in range(len(nodes)):
+                try:
+                    Node[i][3] = geodesic(
+                        (
+                            float(format(location[0][1], '.6f')),
+                            float(format(location[0][0], '.6f'))
+                        ),
+                        (Node[i][1], Node[i][0])
+                    ).m
+                except ValueError:
+                    print(Node[i][0])
+                    print(Node[i][1])
+                    break
+            '''
+            user = float(format(user[0][0], '.6f'))
 
-        lastTime = time
+            #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
+            nextHid, periodHid, qhh, aH, index = deepModel(
+                x=startLocVector,
+                nextHid=nextHid,
+                lastTime=lastTime,
+                user=user,
+                location=[
+                    float(format(location[0][1], '.6f')),
+                    float(format(location[0][0], '.6f'))
+                ],
+                periodHid=periodHid,
+                qhh=qhh,
+                aH=aH,
+                pre=len(nodes),
+                pois=pois,
+                nodes=torch.tensor(Node),
+                edges=torch.ones([len(Node), len(Node)])
+            )
 
-        if i == 1:
-            a = input("test: ")
+            lastTime = time
+
