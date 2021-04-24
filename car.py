@@ -7,6 +7,7 @@ from math import radians,sin,cos,asin,sqrt
 import pandas as pd
 from Model.model import DeepJMTModel, POI
 from geopy.distance import geodesic
+import platform
 
 def weatherIdx(month, day):
         if month == 8:
@@ -181,11 +182,16 @@ def correctIndex(pois, stopLocVector):
     return idx, MM, distance
 
 def run(train=False):
-    path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\data\\weather.csv'
+    path1, path2 = './data/train_new.cav', './data/weather.csv'
+    modelPath = './DeepModel/save.pt'
+    
+    if platform.system().lower = 'windows':
+        path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\weather.csv'
+        modelPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\DeepModel\\save.pt'
+    
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
     #deepModel = DeepJMTModel(8, 10)
-    modelPath = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\DeepModel\\save.pt'
     deepModel = torch.load(modelPath)
     lastUser, lastTime = None, None
     lossFun, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
@@ -319,6 +325,6 @@ def run(train=False):
 
 
 if __name__ == '__main__':
-    run(train=True)
+    run(train=False)
     
 
