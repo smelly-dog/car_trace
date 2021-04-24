@@ -185,7 +185,7 @@ def run(train=False):
     path1, path2 = './data/train_new.cav', './data/weather.csv'
     modelPath = './DeepModel/save.pt'
     
-    if platform.system().lower = 'windows':
+    if platform.system() == 'Windows':
         path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\weather.csv'
         modelPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\DeepModel\\save.pt'
     
