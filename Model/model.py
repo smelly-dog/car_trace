@@ -74,9 +74,9 @@ class DeepJMTModel(torch.nn.Module):
                 )
         #双层RNN编码历史
         
-
+        newNextHid = nextHid.detach()
         #pois = POI(location[0], location[1])
-        nextHidT = nextHid.t()
+        nextHidT = newNextHid.t()
 
         #nextHidT(self.hidden_size * 1)
         dist = [1 for x in range(len(pois))]
@@ -132,6 +132,7 @@ class DeepJMTModel(torch.nn.Module):
             t = torch.div(t1, allwe)
             cL = cL + t * eLi.t()
             '''
+
             cL = cL + ( torch.div(torch.exp(qLis * distance), allwe) @ eLi.t() )
             #print("cL {}".format(cL.shape))
         #空间上下文提取器
@@ -144,7 +145,7 @@ class DeepJMTModel(torch.nn.Module):
             periodHid = torch.randn(1, self.hidden_size)
         timeLocVector = x[-1]
 
-        periodHid = self.GRUCell3(
+        nextPeriodHid = self.GRUCell3(
             torch.cat(
                 (
                     torch.tensor([[user]]),
@@ -154,10 +155,11 @@ class DeepJMTModel(torch.nn.Module):
             ),
             periodHid
         )
-        qhi = torch.exp(nextHidT @ periodHid)
+        newNextPeriodHid = nextPeriodHid.detach()
+        qhi = torch.exp(nextHidT @ newNextPeriodHid)
         qhh = qhh + qhi
         aH = aH + torch.div(qhi, qhh)
-        cP = aH @ ( periodHid.t() )
+        cP = aH @ ( nextPeriodHid.t() )
 
         '''
         qhi = (self.hidden_size, self.hidden_size)
@@ -186,7 +188,7 @@ class DeepJMTModel(torch.nn.Module):
         proMatrixTensor = torch.tensor(projectionMatrix)
 
         mL = torch.cat(
-            (nextHid, cL.t(), cP.t()),
+            (newNextHid, cL.t(), cP.t()),
             dim=1
         )
 
@@ -236,7 +238,7 @@ class DeepJMTModel(torch.nn.Module):
         #结合DeepJMT和GAT
         #print("once end")
 
-        return nextHid, periodHid, qhh, aH, index, raw
+        return newNextHid, periodHid, qhh, aH, index, raw
 
 
         

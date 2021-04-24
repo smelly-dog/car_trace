@@ -136,7 +136,7 @@ class MyDataSet(Dataset):
         return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
-        return 1000
+        return 400000
         #总数据 423544行
 
 def haversine_dis(lon1, lat1, lon2, lat2):
@@ -194,8 +194,10 @@ def run(train=False):
 
     if train:
         deepModel.train()
+        torch.autograd.set_detect_anomaly(True)
     else:
         deepModel.eval()
+
 
     total, correct = 0, 0
 
@@ -263,12 +265,27 @@ def run(train=False):
                 edges=torch.ones([len(Node), len(Node)])
             )
             lastTime = time
+
+            
             
             #print("poi {}".format(len(pois)))
             #print("raw {}".format(raw.shape))
             correctIdx, MM, distance = correctIndex(pois=pois, stopLocVector=stopLocVector)
             print("correctIdx {}".format(correctIdx))
             target, add = torch.zeros(len(pois), dtype=torch.long), False
+
+            target[correctIdx] = 1
+            for idx in range(len(pois)):
+                left = distance[correctIdx] - distance[idx]
+                if left < 0:
+                    left = left * -1
+                if left < 10:
+                    target[idx] = 1
+            if train:
+                loss = lossFun(input=raw, target=target)
+                optimizer.zero_grad()
+                loss.backward(retain_graph=True)
+                optimizer.step()
 
             All = All + 1
 
@@ -282,23 +299,15 @@ def run(train=False):
             if add:
                 right = right + 1
 
-            if train:
-                #训练
-                target[correctIdx] = 1
-                for idx in range(len(pois)):
-                    left = distance[correctIdx] - distance[idx]
-                    if left < 0:
-                        left = left * -1
-                    if left < 10:
-                        target[idx] = 1
-                loss = lossFun(input=raw, target=target)
-                optimizer.zero_grad()
-                loss.backward(retain_graph=True)
-                optimizer.step()
 
-            if i % 20 == 0:
-                print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
+            if i % 10 == 0:
+                if train:
+                    print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
+                else:
+                    print("All {}  right {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, i, right / All))
                 torch.save(deepModel, modelPath)
+                total, correct = total + All, correct + right
+                All, right = 0, 0
                # break
         
         total, correct = total + All, correct + right
