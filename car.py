@@ -140,7 +140,7 @@ class MyDataSet(Dataset):
         return 400000
         #总数据 423544行
 
-def haversine_dis(lon1, lat1, lon2, lat2):
+def haversine_dis(lon1, lat1, lon2, lat2): #经纬度计算距离
     #将十进制转为弧度
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
     
@@ -152,7 +152,7 @@ def haversine_dis(lon1, lat1, lon2, lat2):
     r = 6371 # 地球半径，千米
     return c*r*1000
 
-def correctIndex(pois, stopLocVector):
+def correctIndex(pois, stopLocVector): #正确地点下标及各地点距离计算
     longitude, latitude, idx = stopLocVector[0][-2], stopLocVector[0][-1], 0
     idx, MM, distance = 0, 0, [0 for x in range(len(pois))]
     for j in range(len(pois)):
@@ -190,28 +190,35 @@ def run(train=False):
     ./DeepModel/newModel.pt 新模型, GPU训练
     '''
 
+    useGPU = torch.cuda.is_available()
+
     path1, path2 = './data/train_new.cav', './data/weather.csv'
     modelPath = './DeepModel/newModel.pt'
     
-    if platform.system() == 'Windows':
+    if platform.system() == 'Windows': #跨系统运行
         path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\weather.csv'
         modelPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\DeepModel\\newModel.pt'
     
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
-    deepModel = DeepJMTModel(8, 10)
-    #deepModel = torch.load(modelPath)
+    deepModel = DeepJMTModel(8, 10, useGPU=useGPU)
+    #deepModel.load_state_dit(torch.load(modelPath))
+    if useGPU:
+        deepModel = deepModel.cuda()
+    #模型准备
+
     lastUser, lastTime = None, None
     lossFun, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
-    
-    #deepModel.load_state_dit(torch.load(modelPath))
+    if useGPU:
+        lossFun = lossFun.cuda()
+    #损失函数，优化器准备
 
-    if train:
+
+    if train: #训练 or 测试
         deepModel.train()
         torch.autograd.set_detect_anomaly(True)
     else:
         deepModel.eval()
-
 
     total, correct = 0, 0
 
@@ -223,7 +230,7 @@ def run(train=False):
             user, startLocVector, stopLocVector, weather, location = data
             time = startLocVector[0:6]
             
-            if (i == 0) or (lastUser is None) or (user != lastUser):
+            if (i == 0) or (lastUser is None) or (user != lastUser): #用户切换状态改变
                 lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
                 nodes = [[
                     float(format(location[0][0], '.6f')),
@@ -242,7 +249,7 @@ def run(train=False):
 
             pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
 
-            for j in range(len(pois)):
+            for j in range(len(pois)): #poi距离计算
                 Loc = pois[j]['location']
                 lon, lat = Loc.split(',')
                 lon, lat = float(lon), float(lat)
@@ -264,10 +271,35 @@ def run(train=False):
 
             user = float(format(user[0][0], '.6f'))
 
-            #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
+            #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges, useGPU):
             #print(Node)
             #print(location)
-            nextHid, periodHid, qhh, aH, index, raw = deepModel(
+
+            newNodes = torch.tensor(Node)
+            #print(type(newNodes))
+            newEdges = torch.ones([len(Node), len(Node)])
+            #print('newNodes {}'.format(newNodes.shape))
+            if useGPU:
+                if startLocVector is not None:
+                    startLocVector = startLocVector.cuda()
+                if nextHid is not None:
+                    nextHid = nextHid.cuda()
+                if lastTime is not None:
+                    lastTime = lastTime.cuda()
+                if periodHid is not None:
+                    periodHid = periodHid.cuda()
+                if qhh is not None:
+                    qhh = qhh.cuda()
+                if aH is not None:
+                    aH = aH.cuda()
+                if newNodes is not None:
+                    newNodes = newNodes.cuda()
+                if newEdges is not None:
+                    newEdges = newEdges.cuda()
+
+            #print('nodes {}'.format(newNodes.shape))
+
+            nextHid, periodHid, qhh, aH, index, raw = deepModel( #调用模型
                 x=startLocVector,
                 nextHid=nextHid,
                 lastTime=lastTime,
@@ -282,8 +314,9 @@ def run(train=False):
                 #pre=len(nodes),
                 pre=0,
                 pois=pois,
-                nodes=torch.tensor(Node),
-                edges=torch.ones([len(Node), len(Node)])
+                nodes=newNodes,
+                edges=newEdges,
+                useGPU=useGPU
             )
             lastTime = time
             
@@ -292,6 +325,9 @@ def run(train=False):
             correctIdx, MM, distance = correctIndex(pois=Node, stopLocVector=stopLocVector)
             print("correctIdx {}".format(correctIdx))
             target, add = torch.zeros(len(Node), dtype=torch.long), False
+
+            if useGPU:
+                target = target.cuda()
 
             target[correctIdx] = 1
             for idx in range(len(nodes)):
@@ -308,18 +344,18 @@ def run(train=False):
 
             All = All + 1
 
-            for idx in index:
+            for idx in index: #正确地点计算
                 left = distance[correctIdx] - distance[idx]
                 if left < 0:
                     left = left * -1
                 if left < 10:
                     add = True
             
-            if add:
+            if add: #正确数据加1
                 right = right + 1
 
             #print("test i is{}".format(i))
-            if i % 10 == 0:
+            if i % 10 == 0: #正确率计算和保存模型
                 #print(i)
                 if train:
                     print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
@@ -336,7 +372,6 @@ def run(train=False):
         
         #torch.save(deepModel, modelPath)
         torch.save(deepModel.state_dict(), modelPath)
-
 
 if __name__ == '__main__':
     run(train=True)

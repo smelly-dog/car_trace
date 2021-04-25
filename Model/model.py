@@ -29,7 +29,7 @@ def timeCompare(time1, time2):
     return False
 
 class DeepJMTModel(torch.nn.Module):
-    def __init__(self, input_num, hidden_num):
+    def __init__(self, input_num, hidden_num, useGPU=False):
         super(DeepJMTModel, self).__init__()
         '''
         input_num = 8
@@ -42,7 +42,11 @@ class DeepJMTModel(torch.nn.Module):
         self.GRUCell3 = torch.nn.GRUCell(input_num + 1, hidden_num)
         self.weight = torch.nn.Parameter(data = torch.randn(1, 1))
         self.Relu = torch.nn.ReLU()
-        self.GAT = DynamicNet.GAT.GAT(4, 4, 2, 0.2, 0.2, 4)
+        self.GAT = DynamicNet.GAT.GAT(4, 4, 2, 0.2, 0.2, 4, useGPU=useGPU)
+        if useGPU:
+            self.GRUCell1, self.GRUCell2 = self.GRUCell1.cuda(), self.GRUCell2.cuda()
+            self.GRUCell3, self.GAT = self.GRUCell3.cuda(), self.GAT.cuda()
+            self.weight = self.weight.cuda()
         #self.softmax = torch.nn.Softmax()
         
         '''
@@ -54,12 +58,14 @@ class DeepJMTModel(torch.nn.Module):
     def changeGAT(self, nodes, edges):
         self.add_module('GAT', DeepJMT.GAT(nodes, edges))
     """
-    def forward(self, x, nextHid, lastTime, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
+    def forward(self, x, nextHid, lastTime, user, location, periodHid, qhh, aH, pre, pois, nodes, edges, useGPU=False):
         #传入参数都是tensor, location除外(list), user(float)
         #print("x {}".format(x.size()))
         if (nextHid is None) or ( (lastTime is None) or (timeCompare(lastTime[0], x[0][0:6])) ):
             if nextHid is None:
                 nextHid = torch.randn(1, self.hidden_size)
+                if useGPU:
+                    nextHid = nextHid.cuda()
             nextHid = self.GRUCell1(x, nextHid)
         else:
             nextHid = self.GRUCell2(
@@ -82,11 +88,16 @@ class DeepJMTModel(torch.nn.Module):
         dist = [1 for x in range(len(pois))]
         #qLis = torch.randn(self.hidden_size, 2)
         allwe = torch.zeros(self.hidden_size, 2)
+        if useGPU:
+            allwe = allwe.cuda()
+        
         for i in range(len(pois)):
             #poi = pois[i]
             longitude, latitude = pois[i]['location'].split(',')
             longitude, latitude = float(longitude), float(latitude)
             eLi = torch.tensor([[longitude, latitude]])
+            if useGPU:
+                eLi = eLi.cuda()
             #print("eLi {}".format(eLi.shape))
             qLis = nextHidT @ self.weight @ eLi
 
@@ -106,11 +117,16 @@ class DeepJMTModel(torch.nn.Module):
             #print("allwe {}".format(allwe.shape))
 
         cL = torch.zeros(self.hidden_size, 1)
+        if useGPU:
+            cL = cL.cuda()
+
         for i in range(len(pois)):
             #poi = pois[i]
             longitude, latitude = pois[i]['location'].split(',')
             longitude, latitude = float(longitude), float(latitude)
             eLi = torch.tensor([[longitude, latitude]])
+            if useGPU:
+                eLi = eLi.cuda()
             qLis = nextHidT @ self.weight @ eLi
             
             '''
@@ -143,6 +159,8 @@ class DeepJMTModel(torch.nn.Module):
         Length = len(x)
         if periodHid is None:
             periodHid = torch.randn(1, self.hidden_size)
+            if useGPU:
+                periodHid = periodHid.cuda()
         timeLocVector = x[-1]
 
         nextPeriodHid = self.GRUCell3(
@@ -157,6 +175,8 @@ class DeepJMTModel(torch.nn.Module):
         )
         newNextPeriodHid = nextPeriodHid.detach()
         qhi = torch.exp(nextHidT @ newNextPeriodHid)
+        if useGPU:
+            qhi = qhi.cuda()
         qhh = qhh + qhi
         aH = aH + torch.div(qhi, qhh)
         cP = aH @ ( nextPeriodHid.t() )
@@ -175,7 +195,8 @@ class DeepJMTModel(torch.nn.Module):
         #cP(self.hiddenze, 1)
         #周期上下文提取器
 
-        outGATState = self.GAT(nodes, edges)
+        #print('nodes {}'.format(nodes.shape))
+        outGATState = self.GAT(nodes, edges, useGPU=useGPU)
         #GAT hidden_stata
 
         '''
@@ -192,11 +213,17 @@ class DeepJMTModel(torch.nn.Module):
 
         projectionMatrix = [[n[0], n[1]] for n in nodes]
         proMatrixTensor = torch.tensor(projectionMatrix)
-
+        if useGPU:
+            proMatrixTensor = proMatrixTensor.cuda()
+        
         mL = torch.cat(
             (newNextHid, cL.t(), cP.t()),
             dim=1
         )
+
+        if useGPU:
+            mL = mL.cuda()
+        
 
         '''
         nextHid = (1, self.hidden_size)
@@ -206,8 +233,14 @@ class DeepJMTModel(torch.nn.Module):
         '''
 
         deepLoc = torch.randn(len(proMatrixTensor), 2, 3 * self.hidden_size)
+        if useGPU:
+            deepLoc = deepLoc.cuda()
+        
         for i in range(len(proMatrixTensor)):
             predictionLoc = torch.unsqueeze(proMatrixTensor[i], 0)
+            if useGPU:
+                predictionLoc = predictionLoc.cuda()
+
             #print("pred {}".format(predictionLoc.shape))
             #print("mL {}".format(mL.shape))
             #print("pred {}".format(predictionLoc.shape))
@@ -221,8 +254,12 @@ class DeepJMTModel(torch.nn.Module):
 
         anw = torch.zeros(1, len(projectionMatrix))
         raw = torch.randn(len(projectionMatrix), 3 * self.hidden_size)
+        if useGPU:
+            anw, raw = anw.cuda(), raw.cuda()
         for i in range(len(projectionMatrix)):
             outGAT = torch.unsqueeze(outGATState[i + pre], 0)
+            if useGPU:
+                outGAT = outGAT.cuda()
             temp = outGAT @ deepLoc[i]
 
             '''
@@ -236,6 +273,8 @@ class DeepJMTModel(torch.nn.Module):
         #print("anw {}".format(anw.shape))
         #print(anw)
         value, index = torch.topk(input=softAnw, k=5)
+        if useGPU:
+            softAnw, index = sortAnw.cuda(), index.cuda()
         #结合DeepJMT和GAT
         #print("once end")
 

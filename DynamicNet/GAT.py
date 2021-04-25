@@ -6,7 +6,7 @@ class GraphAttentionLayer(nn.Module):
     """
     图注意力层
     """
-    def __init__(self, in_features, out_features, dropout, alpha, concat=True):
+    def __init__(self, in_features, out_features, dropout, alpha, concat=True, useGPU=False):
         super(GraphAttentionLayer, self).__init__()
         self.in_features = in_features   # 节点表示向量的输入特征数
         self.out_features = out_features   # 节点表示向量的输出特征数
@@ -20,16 +20,20 @@ class GraphAttentionLayer(nn.Module):
         self.a = nn.Parameter(torch.zeros(size=(2*out_features, 1)))
         nn.init.xavier_uniform_(self.a.data, gain=1.414)   # 初始化
         
+        if useGPU:
+            self.W, self.a = self.W.cuda(), self.a.cuda()
         # 定义leakyrelu激活函数
         self.leakyrelu = nn.LeakyReLU(self.alpha)
     
-    def forward(self, inp, adj):
+    def forward(self, inp, adj, useGPU=False):
         """
         inp: input_fea [N, in_features]  in_features表示节点的输入特征向量元素个数
         adj: 图的邻接矩阵  [N, N] 非零即一，数据结构基本知识
         """
         h = torch.mm(inp, self.W)   # [N, out_features]
         N = h.size()[0]    # N 图的节点数
+        if useGPU:
+            h = h.cuda()
         
         a_input = torch.cat([h.repeat(1, N).view(N*N, -1), h.repeat(N, 1)], dim=1).view(N, -1, 2*self.out_features)
         # [N, N, 2*out_features]
@@ -38,6 +42,8 @@ class GraphAttentionLayer(nn.Module):
         
         zero_vec = -1e12 * torch.ones_like(e)    # 将没有连接的边置为负无穷
         attention = torch.where(adj>0, e, zero_vec)   # [N, N]
+        if useGPU:
+            a_input, e, zero_vec, attention = a_input.cuda(), e.cuda(), zero_vec.cuda(), attention.cuda()
         # 表示如果邻接矩阵元素大于0时，则两个节点有连接，该位置的注意力系数保留，
         # 否则需要mask并置为非常小的值，原因是softmax的时候这个最小值会不考虑。
         attention = F.softmax(attention, dim=1)    # softmax形状保持不变 [N, N]，得到归一化的注意力权重！
@@ -54,7 +60,7 @@ class GraphAttentionLayer(nn.Module):
 
 
 class GAT(nn.Module):
-    def __init__(self, n_feat, n_hid, n_class, dropout, alpha, n_heads):
+    def __init__(self, n_feat, n_hid, n_class, dropout, alpha, n_heads, useGPU=False):
         """Dense version of GAT
         n_heads 表示有几个GAL层，最后进行拼接在一起，类似self-attention
         从不同的子空间进行抽取特征。
@@ -63,15 +69,16 @@ class GAT(nn.Module):
         self.dropout = dropout 
         
         # 定义multi-head的图注意力层
-        self.attentions = [GraphAttentionLayer(n_feat, n_hid, dropout=dropout, alpha=alpha, concat=True) for _ in range(n_heads)]
+        self.attentions = [GraphAttentionLayer(n_feat, n_hid, dropout=dropout, alpha=alpha, concat=True, useGPU=useGPU) for _ in range(n_heads)]
         for i, attention in enumerate(self.attentions):
             self.add_module('attention_{}'.format(i), attention)   # 加入pytorch的Module模块
         # 输出层，也通过图注意力层来实现，可实现分类、预测等功能
-        self.out_att = GraphAttentionLayer(n_hid * n_heads, n_class, dropout=dropout,alpha=alpha, concat=False)
+        self.out_att = GraphAttentionLayer(n_hid * n_heads, n_class, dropout=dropout,alpha=alpha, concat=False, useGPU=useGPU)
     
-    def forward(self, x, adj):
+    def forward(self, x, adj, useGPU=False):
+        #print('x {}'.format(type(x)))
         x = F.dropout(x, self.dropout, training=self.training)   # dropout，防止过拟合
-        x = torch.cat([att(x, adj) for att in self.attentions], dim=1)  # 将每个head得到的表示进行拼接
+        x = torch.cat([att(x, adj, useGPU=useGPU) for att in self.attentions], dim=1)  # 将每个head得到的表示进行拼接
         x = F.dropout(x, self.dropout, training=self.training)   # dropout，防止过拟合
         x = F.elu(self.out_att(x, adj))   # 输出并激活
         return x
