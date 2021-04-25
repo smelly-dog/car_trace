@@ -157,9 +157,12 @@ def correctIndex(pois, stopLocVector):
     idx, MM, distance = 0, 0, [0 for x in range(len(pois))]
     for j in range(len(pois)):
         poi = pois[j]
-        location = poi['location']
-        lon, lat = location.split(',')
-        lon, lat = float(lon), float(lat)
+        #location = poi['location']
+        #lon, lat = location.split(',')
+        #lon, lat = float(lon), float(lat)
+
+        lon, lat = poi[0], poi[1]
+        #新图
         
         value = haversine_dis(
             min(lon, longitude),
@@ -182,17 +185,22 @@ def correctIndex(pois, stopLocVector):
     return idx, MM, distance
 
 def run(train=False):
+    '''
+    ./DeepModel/save.pt 是老模型, cpu保存与加载
+    ./DeepModel/newModel.pt 新模型, GPU训练
+    '''
+
     path1, path2 = './data/train_new.cav', './data/weather.csv'
-    modelPath = './DeepModel/save.pt'
+    modelPath = './DeepModel/newModel.pt'
     
     if platform.system() == 'Windows':
         path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\weather.csv'
-        modelPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\DeepModel\\save.pt'
+        modelPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\DeepModel\\newModel.pt'
     
     dataSet = MyDataSet(path1, path2)
     dataLoader = DataLoader(dataset=dataSet)
-    #deepModel = DeepJMTModel(8, 10)
-    deepModel = torch.load(modelPath)
+    deepModel = DeepJMTModel(8, 10)
+    #deepModel = torch.load(modelPath)
     lastUser, lastTime = None, None
     lossFun, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
     #modelPath = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\DeepModel\\save.pt'
@@ -214,7 +222,6 @@ def run(train=False):
             #print(i)
             user, startLocVector, stopLocVector, weather, location = data
             time = startLocVector[0:6]
-
             
             if (i == 0) or (lastUser is None) or (user != lastUser):
                 lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
@@ -235,6 +242,12 @@ def run(train=False):
 
             pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
 
+            for j in range(len(pois)):
+                Loc = pois[j]['location']
+                lon, lat = Loc.split(',')
+                lon, lat = float(lon), float(lat)
+                pois[j]['distance'] = haversine_dis(lon, lat, startLocVector[0][0], startLocVector[0][1])
+            #poi 修改距离
 
             Node = nodes[:]
             projectionMatrix = [[p['location'], p['distance']] for p in pois]
@@ -253,35 +266,35 @@ def run(train=False):
 
             #def forward(self, x, nextHid, user, location, periodHid, qhh, aH, pre, pois, nodes, edges):
             #print(Node)
+            #print(location)
             nextHid, periodHid, qhh, aH, index, raw = deepModel(
                 x=startLocVector,
                 nextHid=nextHid,
                 lastTime=lastTime,
                 user=user,
                 location=[
-                    float(format(location[0][1], '.6f')),
-                    float(format(location[0][0], '.6f'))
+                    float(format(location[0][0], '.6f')),
+                    float(format(location[0][1], '.6f'))
                 ],
                 periodHid=periodHid,
                 qhh=qhh,
                 aH=aH,
-                pre=len(nodes),
+                #pre=len(nodes),
+                pre=0,
                 pois=pois,
                 nodes=torch.tensor(Node),
                 edges=torch.ones([len(Node), len(Node)])
             )
             lastTime = time
-
-            
             
             #print("poi {}".format(len(pois)))
             #print("raw {}".format(raw.shape))
-            correctIdx, MM, distance = correctIndex(pois=pois, stopLocVector=stopLocVector)
+            correctIdx, MM, distance = correctIndex(pois=Node, stopLocVector=stopLocVector)
             print("correctIdx {}".format(correctIdx))
-            target, add = torch.zeros(len(pois), dtype=torch.long), False
+            target, add = torch.zeros(len(Node), dtype=torch.long), False
 
             target[correctIdx] = 1
-            for idx in range(len(pois)):
+            for idx in range(len(nodes)):
                 left = distance[correctIdx] - distance[idx]
                 if left < 0:
                     left = left * -1
@@ -305,8 +318,9 @@ def run(train=False):
             if add:
                 right = right + 1
 
-
+            #print("test i is{}".format(i))
             if i % 10 == 0:
+                #print(i)
                 if train:
                     print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
                 else:
@@ -325,6 +339,6 @@ def run(train=False):
 
 
 if __name__ == '__main__':
-    run(train=False)
+    run(train=True)
     
 
