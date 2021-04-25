@@ -20,8 +20,10 @@ class GraphAttentionLayer(nn.Module):
         self.a = nn.Parameter(torch.zeros(size=(2*out_features, 1)))
         nn.init.xavier_uniform_(self.a.data, gain=1.414)   # 初始化
         
+        '''
         if useGPU:
             self.W, self.a = self.W.cuda(), self.a.cuda()
+        '''
         # 定义leakyrelu激活函数
         self.leakyrelu = nn.LeakyReLU(self.alpha)
     

@@ -15,7 +15,7 @@ def weatherIdx(month, day):
         return (day - 1) + 31
 
 class MyDataSet(Dataset):
-    def __init__(self, path1, path2):
+    def __init__(self, path1, path2, useGPU=False):
         '''
         with open(path1, encoding='utf-8') as f:
             #self.f = f
@@ -28,6 +28,7 @@ class MyDataSet(Dataset):
         print(self.data[0:5])
 
         '''
+        self.useGPU = useGPU
 
         data = pd.read_csv(
             path1,
@@ -134,7 +135,15 @@ class MyDataSet(Dataset):
 
         location = [self.data[idx][2], self.data[idx][3]]
 
-        return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
+        if self.useGPU:
+            user = torch.tensor([user], device='cuda:0')
+            startLocVector = torch.tensor(startLocVector, device='cuda:0')
+            stopLocVector = torch.tensor(stopLocVector, device='cuda:0')
+            weather = torch.tensor(weather, device='cuda:0')
+            location = torch.tensor(location, device='cuda:0')
+            return user, startLocVector, stopLocVector, weather, location
+        else:
+            return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
         return 400000
@@ -192,31 +201,38 @@ def run(train=False):
 
     useGPU = torch.cuda.is_available()
 
-    path1, path2 = './data/train_new.cav', './data/weather.csv'
+    path1, path2 = './data/train_new.csv', './data/weather.csv'
     modelPath = './DeepModel/newModel.pt'
     
     if platform.system() == 'Windows': #跨系统运行
         path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\weather.csv'
         modelPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\DeepModel\\newModel.pt'
     
-    dataSet = MyDataSet(path1, path2)
+    dataSet = MyDataSet(path1, path2, useGPU=useGPU)
     dataLoader = DataLoader(dataset=dataSet)
     deepModel = DeepJMTModel(8, 10, useGPU=useGPU)
-    #deepModel.load_state_dit(torch.load(modelPath))
+    deepModel.load_state_dict(torch.load(modelPath))
     if useGPU:
         deepModel = deepModel.cuda()
     #模型准备
 
     lastUser, lastTime = None, None
-    lossFun, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
+    if useGPU:
+        lossFun = torch.nn.CrossEntropyLoss().cuda()
+    else:
+        lossFun = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
+    
+    '''
     if useGPU:
         lossFun = lossFun.cuda()
+    '''
     #损失函数，优化器准备
 
 
     if train: #训练 or 测试
         deepModel.train()
-        torch.autograd.set_detect_anomaly(True)
+        #torch.autograd.set_detect_anomaly(True)
     else:
         deepModel.eval()
 
@@ -231,7 +247,19 @@ def run(train=False):
             time = startLocVector[0:6]
             
             if (i == 0) or (lastUser is None) or (user != lastUser): #用户切换状态改变
-                lastUser, nextHid, periodHid, qhh, aH = user, None, None, torch.zeros(10, 10), torch.zeros(10, 10) 
+                if useGPU:
+                    lastUser = user
+                    nextHid = torch.randn(1, 10, device='cuda:0')
+                    periodHid = torch.randn(1, 10, device='cuda:0')
+                    qhh = torch.zeros(10, 10, device='cuda:0')
+                    aH = torch.zeros(10, 10, device='cuda:0')
+                else :
+                    lastUser = user
+                    nextHid = torch.randn(1, 10)
+                    periodHid = torch.randn(1, 10)
+                    qhh = torch.zeros(10, 10)
+                    aH = torch.zeros(10, 10)
+                
                 nodes = [[
                     float(format(location[0][0], '.6f')),
                     float(format(location[0][1], '.6f')),
@@ -275,10 +303,16 @@ def run(train=False):
             #print(Node)
             #print(location)
 
-            newNodes = torch.tensor(Node)
-            #print(type(newNodes))
-            newEdges = torch.ones([len(Node), len(Node)])
+            if useGPU:
+                newNodes = torch.tensor(Node, device='cuda:0')
+                newEdges = torch.tensor([len(Node), len(Node)], device='cuda:0')
+            else:
+                newNodes = torch.tensor(Node)
+                #print(type(newNodes))
+                newEdges = torch.ones([len(Node), len(Node)])
             #print('newNodes {}'.format(newNodes.shape))
+
+            '''
             if useGPU:
                 if startLocVector is not None:
                     startLocVector = startLocVector.cuda()
@@ -296,7 +330,7 @@ def run(train=False):
                     newNodes = newNodes.cuda()
                 if newEdges is not None:
                     newEdges = newEdges.cuda()
-
+            '''
             #print('nodes {}'.format(newNodes.shape))
 
             nextHid, periodHid, qhh, aH, index, raw = deepModel( #调用模型
@@ -323,8 +357,12 @@ def run(train=False):
             #print("poi {}".format(len(pois)))
             #print("raw {}".format(raw.shape))
             correctIdx, MM, distance = correctIndex(pois=Node, stopLocVector=stopLocVector)
-            print("correctIdx {}".format(correctIdx))
-            target, add = torch.zeros(len(Node), dtype=torch.long), False
+            #print("correctIdx {}".format(correctIdx))
+            add = False
+            if useGPU:
+                target = torch.zeros(len(Node), dtype=torch.long, device='cuda:0')
+            else:
+                target = torch.zeros(len(Node), dtype=torch.long)
 
             if useGPU:
                 target = target.cuda()
@@ -362,10 +400,11 @@ def run(train=False):
                 else:
                     print("All {}  right {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, i, right / All))
                 #torch.save(deepModel, modelPath)
-                torch.save(deepModel.state_dict(), modelPath)
+                if i % 100 == 0:
+                    torch.save(deepModel.state_dict(), modelPath)
                 total, correct = total + All, correct + right
                 All, right = 0, 0
-               # break
+               #break
         
         total, correct = total + All, correct + right
         print("total {} correct {} 当前epoch {} 总正确率{}".format(total, correct, t, correct / total))
