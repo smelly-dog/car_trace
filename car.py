@@ -203,8 +203,8 @@ def run(train=False):
     #deepModel = torch.load(modelPath)
     lastUser, lastTime = None, None
     lossFun, optimizer = torch.nn.CrossEntropyLoss(), torch.optim.Adam(params=deepModel.parameters(), lr=0.0001)
-    #modelPath = 'C:\\Users\\Lenovo\\Desktop\\Code\\car\\DeepModel\\save.pt'
-    #deepModel = torch.load(modelPath)
+    
+    #deepModel.load_state_dit(torch.load(modelPath))
 
     if train:
         deepModel.train()
@@ -325,7 +325,8 @@ def run(train=False):
                     print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
                 else:
                     print("All {}  right {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, i, right / All))
-                torch.save(deepModel, modelPath)
+                #torch.save(deepModel, modelPath)
+                torch.save(deepModel.state_dict(), modelPath)
                 total, correct = total + All, correct + right
                 All, right = 0, 0
                # break
@@ -333,9 +334,8 @@ def run(train=False):
         total, correct = total + All, correct + right
         print("total {} correct {} 当前epoch {} 总正确率{}".format(total, correct, t, correct / total))
         
-        torch.save(deepModel, modelPath)
-        #break
-        #a = input("wait")
+        #torch.save(deepModel, modelPath)
+        torch.save(deepModel.state_dict(), modelPath)
 
 
 if __name__ == '__main__':

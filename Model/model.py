@@ -178,6 +178,7 @@ class DeepJMTModel(torch.nn.Module):
         outGATState = self.GAT(nodes, edges)
         #GAT hidden_stata
 
+        '''
         projectionMatrix = [[p['location']] for p in pois]
         for i in range(len(projectionMatrix)):
             temp = projectionMatrix[i][0]
@@ -186,18 +187,16 @@ class DeepJMTModel(torch.nn.Module):
             projectionMatrix[i] = [[longitude, latitude]]
         #print(projectionMatrix)
         proMatrixTensor = torch.tensor(projectionMatrix)
+        '''
+
+
+        projectionMatrix = [[n[0], n[1]] for n in nodes]
+        proMatrixTensor = torch.tensor(projectionMatrix)
 
         mL = torch.cat(
             (newNextHid, cL.t(), cP.t()),
             dim=1
         )
-
-        '''
-        print("nextHid {}".format(nextHid.shape))
-        print("cL.t() {}".format(cL.t().shape))
-        print("cP.t() {}".format(cP.t().shape))
-        print("mL {}".format(mL.shape))
-        '''
 
         '''
         nextHid = (1, self.hidden_size)
@@ -206,9 +205,11 @@ class DeepJMTModel(torch.nn.Module):
         mL(1, 3 * self.hidden_size)
         '''
 
-        deepLoc = torch.randn(len(pois), 2, 3 * self.hidden_size)
+        deepLoc = torch.randn(len(proMatrixTensor), 2, 3 * self.hidden_size)
         for i in range(len(proMatrixTensor)):
-            predictionLoc = proMatrixTensor[i]
+            predictionLoc = torch.unsqueeze(proMatrixTensor[i], 0)
+            #print("pred {}".format(predictionLoc.shape))
+            #print("mL {}".format(mL.shape))
             #print("pred {}".format(predictionLoc.shape))
             deepLoc[i] = predictionLoc.t() @ mL
             '''
@@ -218,9 +219,9 @@ class DeepJMTModel(torch.nn.Module):
             '''
         #DeepJMT 地点预测
 
-        anw = torch.zeros(1, len(pois))
-        raw = torch.randn(len(pois), 3 * self.hidden_size)
-        for i in range(len(pois)):
+        anw = torch.zeros(1, len(projectionMatrix))
+        raw = torch.randn(len(projectionMatrix), 3 * self.hidden_size)
+        for i in range(len(projectionMatrix)):
             outGAT = torch.unsqueeze(outGATState[i + pre], 0)
             temp = outGAT @ deepLoc[i]
 
