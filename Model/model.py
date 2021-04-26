@@ -252,7 +252,7 @@ class DeepJMTModel(torch.nn.Module):
 
         #print('nodes {}'.format(nodes.shape))
         #print('nodes {}'.format(nodes.device))
-        #print('edges {}'.format(edges.device))
+        #print('edges {}'.format(edges.shape))
         outGATState = self.GAT(nodes, edges, useGPU=useGPU)
         #GAT hidden_stata
 
@@ -266,7 +266,6 @@ class DeepJMTModel(torch.nn.Module):
         #print(projectionMatrix)
         proMatrixTensor = torch.tensor(projectionMatrix)
         '''
-
 
         projectionMatrix = [[[n[0], n[1]]] for n in nodes]
         if useGPU:
@@ -336,10 +335,9 @@ class DeepJMTModel(torch.nn.Module):
             anw, raw = anw.cuda(), raw.cuda()
         '''
         for i in range(len(projectionMatrix)):
-            if useGPU:
-                outGAT = torch.unsqueeze(outGATState[i + pre], 0, device='cuda:0')
-            else:
-                outGAT = torch.unsqueeze(outGATState[i + pre], 0)
+            outGAT = torch.unsqueeze(outGATState[i + pre], 0)
+            #print('outGAT {}'.format(outGAT.device))
+            #a = input('wait')
             '''
             if useGPU:
                 outGAT = outGAT.cuda()

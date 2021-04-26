@@ -1,4 +1,4 @@
-import torch
+import torch, argparse
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 #from itertools import istools
@@ -110,6 +110,8 @@ class MyDataSet(Dataset):
         print("idx {}".format(idx))
         print(len(self.data))
         '''
+        idx = idx
+
         user = self.data[idx][0]
         time1, time2 = self.data[idx][1].split(' ')
         #print("time1 {} time2 {} unpack{}".format(time1, time2, time1.split('-')))
@@ -146,7 +148,8 @@ class MyDataSet(Dataset):
             return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
-        return 400000
+        return 10000
+        #return 400000
         #总数据 423544行
 
 def haversine_dis(lon1, lat1, lon2, lat2): #经纬度计算距离
@@ -238,7 +241,7 @@ def run(train=False):
 
     total, correct = 0, 0
 
-    for t in range(100):
+    for t in range(10):
         #epoch 100
         All, right = 0, 0
         for i, data in enumerate(dataLoader):
@@ -393,26 +396,35 @@ def run(train=False):
                 right = right + 1
 
             #print("test i is{}".format(i))
-            if i % 10 == 0: #正确率计算和保存模型
+            if i % 7 == 0: #正确率计算和保存模型
                 #print(i)
                 if train:
                     print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
                 else:
                     print("All {}  right {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, i, right / All))
                 #torch.save(deepModel, modelPath)
-                if i % 100 == 0:
+                if i % 70 == 0:
                     torch.save(deepModel.state_dict(), modelPath)
                 total, correct = total + All, correct + right
                 All, right = 0, 0
                #break
-        
+        '''
         total, correct = total + All, correct + right
         print("total {} correct {} 当前epoch {} 总正确率{}".format(total, correct, t, correct / total))
+        '''
         
         #torch.save(deepModel, modelPath)
         torch.save(deepModel.state_dict(), modelPath)
 
 if __name__ == '__main__':
-    run(train=True)
+    parser = argparse.ArgumentParser(description='train or test')
+    parser.add_argument('train', type=str, help='传入的训练参数类型')
+    args = parser.parse_args().train
+    #default train is True
+    if args == 'False':
+        train = False
+    else:
+        train = True
+    run(train=train)
     
 

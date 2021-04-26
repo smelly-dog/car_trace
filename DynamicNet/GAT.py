@@ -14,6 +14,12 @@ class GraphAttentionLayer(nn.Module):
         self.alpha = alpha     # leakyrelu激活的参数
         self.concat = concat   # 如果为true, 再进行elu激活
         
+        if useGPU:
+            w = torch.zeros(size=(in_features, out_features), device='cuda:0')
+            a = torch.zeros(size=(2*out_features, 1), device='cuda:0')
+        else:
+            w = torch.zeros(size=(in_features, out_features))
+            a = torch.zeros(size=(2*out_features, 1))
         # 定义可训练参数，即论文中的W和a
         self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))  
         nn.init.xavier_uniform_(self.W.data, gain=1.414)  # 初始化
@@ -43,9 +49,19 @@ class GraphAttentionLayer(nn.Module):
         # [N, N, 1] => [N, N] 图注意力的相关系数（未归一化）
         
         zero_vec = -1e12 * torch.ones_like(e)    # 将没有连接的边置为负无穷
-        attention = torch.where(adj>0, e, zero_vec)   # [N, N]
+        '''
+        print('adj {} {} {}'.format(adj.shape, adj.device, adj))
+        print('e {} {}'.format(e.shape, e.device))
+        print('zero_vec {} {}'.format(zero_vec.shape, zero_vec.device))
+        '''
+        #a = input('wait')
+        '''
         if useGPU:
-            a_input, e, zero_vec, attention = a_input.cuda(), e.cuda(), zero_vec.cuda(), attention.cuda()
+            a_input, e, zero_vec = a_input.cuda(), e.cuda(), zero_vec.cuda()
+        '''
+        attention = torch.where(adj>0, e, zero_vec)  
+        #attention = e.clone() # [N, N]
+
         # 表示如果邻接矩阵元素大于0时，则两个节点有连接，该位置的注意力系数保留，
         # 否则需要mask并置为非常小的值，原因是softmax的时候这个最小值会不考虑。
         attention = F.softmax(attention, dim=1)    # softmax形状保持不变 [N, N]，得到归一化的注意力权重！
