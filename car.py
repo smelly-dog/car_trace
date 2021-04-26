@@ -110,7 +110,7 @@ class MyDataSet(Dataset):
         print("idx {}".format(idx))
         print(len(self.data))
         '''
-        idx = idx
+        idx = idx + 4000
 
         user = self.data[idx][0]
         time1, time2 = self.data[idx][1].split(' ')
@@ -196,7 +196,7 @@ def correctIndex(pois, stopLocVector): #正确地点下标及各地点距离计�
     
     return idx, MM, distance
 
-def run(train=False):
+def run(train=True, maxNodes=20):
     '''
     ./DeepModel/save.pt 是老模型, cpu保存与加载
     ./DeepModel/newModel.pt 新模型, GPU训练
@@ -271,12 +271,18 @@ def run(train=False):
                 ]]
                 lastTime = None
             else:
+                #input('wait')
+                if len(nodes) == maxNodes:
+                    nodes.pop(0)
                 nodes.append([
                     float(format(location[0][0], '.6f')),
                     float(format(location[0][1], '.6f')),
                     float(format(weather[0][0], '.6f')),
                     0.0
                 ])
+
+            #print(len(nodes))
+            #a = input('wait')
 
             pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
 
@@ -315,25 +321,6 @@ def run(train=False):
                 newEdges = torch.ones([len(Node), len(Node)])
             #print('newNodes {}'.format(newNodes.shape))
 
-            '''
-            if useGPU:
-                if startLocVector is not None:
-                    startLocVector = startLocVector.cuda()
-                if nextHid is not None:
-                    nextHid = nextHid.cuda()
-                if lastTime is not None:
-                    lastTime = lastTime.cuda()
-                if periodHid is not None:
-                    periodHid = periodHid.cuda()
-                if qhh is not None:
-                    qhh = qhh.cuda()
-                if aH is not None:
-                    aH = aH.cuda()
-                if newNodes is not None:
-                    newNodes = newNodes.cuda()
-                if newEdges is not None:
-                    newEdges = newEdges.cuda()
-            '''
             #print('nodes {}'.format(newNodes.shape))
 
             nextHid, periodHid, qhh, aH, index, raw = deepModel( #调用模型
@@ -389,21 +376,21 @@ def run(train=False):
                 left = distance[correctIdx] - distance[idx]
                 if left < 0:
                     left = left * -1
-                if left < 10:
+                if left < 500:
                     add = True
             
             if add: #正确数据加1
                 right = right + 1
 
             #print("test i is{}".format(i))
-            if i % 7 == 0: #正确率计算和保存模型
+            if i % 10 == 0: #正确率计算和保存模型
                 #print(i)
                 if train:
                     print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
                 else:
-                    print("All {}  right {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, i, right / All))
+                    print("All {}  right {}  当前epoch测试{}个样本 当前正确率{}".format(All, right, i, right / All))
                 #torch.save(deepModel, modelPath)
-                if i % 70 == 0:
+                if i % 100 == 0:
                     torch.save(deepModel.state_dict(), modelPath)
                 total, correct = total + All, correct + right
                 All, right = 0, 0
@@ -412,19 +399,20 @@ def run(train=False):
         total, correct = total + All, correct + right
         print("total {} correct {} 当前epoch {} 总正确率{}".format(total, correct, t, correct / total))
         '''
-        
+        if not train:
+            break
         #torch.save(deepModel, modelPath)
         torch.save(deepModel.state_dict(), modelPath)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='train or test')
-    parser.add_argument('train', type=str, help='传入的训练参数类型')
-    args = parser.parse_args().train
+    parser.add_argument('--train', type=str, help='传入的训练参数类型', default='True', nargs='?')
+    parser.add_argument('--maxNodes', type=int, help='传入的最大历史数据', default=20, nargs='?')
+    train, maxNodes = parser.parse_args().train, parser.parse_args().maxNodes
     #default train is True
-    if args == 'False':
+    if train == 'False':
         train = False
-    else:
-        train = True
-    run(train=train)
+    
+    run(train=train, maxNodes=maxNodes)
     
 
