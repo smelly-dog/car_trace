@@ -354,7 +354,7 @@ class DeepJMTModel(torch.nn.Module):
         softAnw = torch.nn.functional.softmax(anw[0], dim=0)
         #print("anw {}".format(anw.shape))
         #print(anw)
-        value, index = torch.topk(input=softAnw, k=5)
+        value, index = torch.topk(input=softAnw, k=7)
         '''
         if useGPU:
             #softAnw, index = sortAnw.cuda(), index.cuda()

@@ -110,7 +110,7 @@ class MyDataSet(Dataset):
         print("idx {}".format(idx))
         print(len(self.data))
         '''
-        idx = idx + 4000
+        idx = idx + 300000
 
         user = self.data[idx][0]
         time1, time2 = self.data[idx][1].split(' ')
@@ -148,7 +148,7 @@ class MyDataSet(Dataset):
             return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
-        return 10000
+        return 400000
         #return 400000
         #总数据 423544行
 
@@ -383,14 +383,14 @@ def run(train=True, maxNodes=20):
                 right = right + 1
 
             #print("test i is{}".format(i))
-            if i % 10 == 0: #正确率计算和保存模型
+            if i % 100 == 0: #正确率计算和保存模型
                 #print(i)
                 if train:
-                    print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, i, right / All))
+                    print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, 100, right / All))
                 else:
-                    print("All {}  right {}  当前epoch测试{}个样本 当前正确率{}".format(All, right, i, right / All))
+                    print("All {}  right {}  当前epoch测试{}个样本 当前正确率{}".format(All, right, 100, right / All))
                 #torch.save(deepModel, modelPath)
-                if i % 100 == 0:
+                if i % 1000 == 0:
                     torch.save(deepModel.state_dict(), modelPath)
                 total, correct = total + All, correct + right
                 All, right = 0, 0
