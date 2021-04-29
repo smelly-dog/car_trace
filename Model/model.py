@@ -288,7 +288,6 @@ class DeepJMTModel(torch.nn.Module):
             mL = mL.cuda()
         '''
         
-
         '''
         nextHid = (1, self.hidden_size)
         cL = (self.hidden_size, 1)
@@ -342,7 +341,13 @@ class DeepJMTModel(torch.nn.Module):
             if useGPU:
                 outGAT = outGAT.cuda()
             '''
-            temp = outGAT @ deepLoc[i]
+            
+            temp = outGAT @ deepLoc[i] #测试无GAT
+            #print('temp {}'.format(temp.shape))
+            #print('deeploc[i] {}'.format(deepLoc[i].shape))
+            
+            #temp = torch.unsqueeze(deepLoc[i][0], 0)
+            #temp = deepLoc[i].view(1, 3 * self.hidden_size)
 
             '''
             outGAT = (1, 2)

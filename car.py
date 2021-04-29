@@ -110,7 +110,7 @@ class MyDataSet(Dataset):
         print("idx {}".format(idx))
         print(len(self.data))
         '''
-        idx = idx + 300000
+        idx = idx + 320000
 
         user = self.data[idx][0]
         time1, time2 = self.data[idx][1].split(' ')
@@ -169,10 +169,6 @@ def correctIndex(pois, stopLocVector): #正确地点下标及各地点距离计�
     idx, MM, distance = 0, 0, [0 for x in range(len(pois))]
     for j in range(len(pois)):
         poi = pois[j]
-        #location = poi['location']
-        #lon, lat = location.split(',')
-        #lon, lat = float(lon), float(lat)
-
         lon, lat = poi[0], poi[1]
         #新图
         
@@ -198,7 +194,6 @@ def correctIndex(pois, stopLocVector): #正确地点下标及各地点距离计�
 
 def run(train=True, maxNodes=20):
     '''
-    ./DeepModel/save.pt 是老模型, cpu保存与加载
     ./DeepModel/newModel.pt 新模型, GPU训练
     '''
 
