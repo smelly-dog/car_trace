@@ -278,8 +278,10 @@ def run(train=True, maxNodes=20):
 
             #print(len(nodes))
             #a = input('wait')
-
-            pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
+            try:
+                pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
+            except RuntimeError:
+                print('高德地图配额用完，连接超时')
 
             for j in range(len(pois)): #poi距离计算
                 Loc = pois[j]['location']
@@ -386,13 +388,15 @@ def run(train=True, maxNodes=20):
                     print("All {}  right {}  当前epoch测试{}个样本 当前正确率{}".format(All, right, 100, right / 100))
                 #torch.save(deepModel, modelPath)
                 total, correct = total + 100, correct + right
-                acc.append(right / All)
+                #acc.append(right / All)
                 if i % 1000 == 0:
                     if train:
                         torch.save(deepModel.state_dict(), modelPath)
+                    '''
                     accDa = pd.DataFrame({'withGAT':acc})
                     acc.clear()
                     accDa.to_csv(csvPath, mode='a', header=True, index=None)
+                    '''
                     print('total  {}'.format(total))
     
                 All, right = 0, 0
