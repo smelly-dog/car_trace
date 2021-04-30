@@ -148,8 +148,7 @@ class MyDataSet(Dataset):
             return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
-        return 400000
-        #return 400000
+        return 80000
         #总数据 423544行
 
 def haversine_dis(lon1, lat1, lon2, lat2): #经纬度计算距离
@@ -196,8 +195,9 @@ def run(train=True, maxNodes=20):
     '''
     ./DeepModel/newModel.pt 新模型, GPU训练
     '''
-
+    csvPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\low_acc.csv'
     useGPU = torch.cuda.is_available()
+    acc = []
 
     path1, path2 = './data/train_new.csv', './data/weather.csv'
     modelPath = './DeepModel/newModel.pt'
@@ -378,16 +378,23 @@ def run(train=True, maxNodes=20):
                 right = right + 1
 
             #print("test i is{}".format(i))
-            if i % 100 == 0: #正确率计算和保存模型
+            if (i % 100 == 0) and (i != 0): #正确率计算和保存模型
                 #print(i)
                 if train:
-                    print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, 100, right / All))
+                    print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, 100, right / 100))
                 else:
-                    print("All {}  right {}  当前epoch测试{}个样本 当前正确率{}".format(All, right, 100, right / All))
+                    print("All {}  right {}  当前epoch测试{}个样本 当前正确率{}".format(All, right, 100, right / 100))
                 #torch.save(deepModel, modelPath)
+                total, correct = total + 100, correct + right
+                acc.append(right / All)
                 if i % 1000 == 0:
-                    torch.save(deepModel.state_dict(), modelPath)
-                total, correct = total + All, correct + right
+                    if train:
+                        torch.save(deepModel.state_dict(), modelPath)
+                    accDa = pd.DataFrame({'withGAT':acc})
+                    acc.clear()
+                    accDa.to_csv(csvPath, mode='a', header=True, index=None)
+                    print('total  {}'.format(total))
+    
                 All, right = 0, 0
                #break
         '''
@@ -397,7 +404,13 @@ def run(train=True, maxNodes=20):
         if not train:
             break
         #torch.save(deepModel, modelPath)
-        torch.save(deepModel.state_dict(), modelPath)
+        if train:
+            torch.save(deepModel.state_dict(), modelPath)
+    
+    #csvPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\acc.csv'
+    acc = pd.DataFrame({'withGAT':acc})
+    acc.to_csv(csvPath, mode='a', header=True, index=None)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='train or test')

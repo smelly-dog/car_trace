@@ -6,7 +6,7 @@ def POI(longitude, latitude):
     location = str(longitude) + ',' + str(latitude)
     parameters = {
         'location': location,
-        'key': '8c9b55944852c98366d685d8894d74a0',
+        'key': 'ccc85e922e3aa00a462098bc825f98c8',
         'radius': '3000',
         'extensions': 'all',
         'batch': 'false',
