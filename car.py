@@ -1,4 +1,4 @@
-import torch, argparse
+import torch, argparse, requests
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 #from itertools import istools
@@ -110,8 +110,7 @@ class MyDataSet(Dataset):
         print("idx {}".format(idx))
         print(len(self.data))
         '''
-        idx = idx + 320000
-
+        idx = idx + 200000
         user = self.data[idx][0]
         time1, time2 = self.data[idx][1].split(' ')
         #print("time1 {} time2 {} unpack{}".format(time1, time2, time1.split('-')))
@@ -148,8 +147,8 @@ class MyDataSet(Dataset):
             return torch.tensor([user]), torch.tensor(startLocVector), torch.tensor(stopLocVector), torch.tensor(weather), torch.tensor(location)
         
     def __len__(self):
-        return 80000
-        #总数据 423544行
+        return 200000
+        
 
 def haversine_dis(lon1, lat1, lon2, lat2): #经纬度计算距离
     #将十进制转为弧度
@@ -200,11 +199,11 @@ def run(train=True, maxNodes=20):
     acc = []
 
     path1, path2 = './data/train_new.csv', './data/weather.csv'
-    modelPath = './DeepModel/newModel.pt'
+    modelPath = './DeepModel/newModel_good.pt'
     
     if platform.system() == 'Windows': #跨系统运行
         path1, path2 = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\train_new.csv', 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\data\\weather.csv'
-        modelPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\DeepModel\\newModel.pt'
+        modelPath = 'C:\\Users\\Lenovo\\Desktop\\car\\car_trace\\DeepModel\\newModel_good.pt'
     
     dataSet = MyDataSet(path1, path2, useGPU=useGPU)
     dataLoader = DataLoader(dataset=dataSet)
@@ -280,8 +279,10 @@ def run(train=True, maxNodes=20):
             #a = input('wait')
             try:
                 pois = POI(format(location[0][0], '.6f'), format(location[0][1], '.6f'))
-            except RuntimeError:
+            except requests.exceptions.ConnectionError:
+                #requests.exceptions.ConnectionError
                 print('高德地图配额用完，连接超时')
+                continue
 
             for j in range(len(pois)): #poi距离计算
                 Loc = pois[j]['location']
@@ -356,10 +357,11 @@ def run(train=True, maxNodes=20):
 
             target[correctIdx] = 1
             for idx in range(len(nodes)):
-                left = distance[correctIdx] - distance[idx]
+                #left = distance[correctIdx] - distance[idx]
+                left = haversine_dis(Node[correctIdx][0], Node[correctIdx][1], Node[idx][0], Node[idx][1])
                 if left < 0:
                     left = left * -1
-                if left < 10:
+                if left < 500:
                     target[idx] = 1
             if train:
                 loss = lossFun(input=raw, target=target)
@@ -370,7 +372,8 @@ def run(train=True, maxNodes=20):
             All = All + 1
 
             for idx in index: #正确地点计算
-                left = distance[correctIdx] - distance[idx]
+                #left = distance[correctIdx] - distance[idx]
+                left = haversine_dis(Node[correctIdx][0], Node[correctIdx][1], Node[idx][0], Node[idx][1])
                 if left < 0:
                     left = left * -1
                 if left < 500:
@@ -383,20 +386,20 @@ def run(train=True, maxNodes=20):
             if (i % 100 == 0) and (i != 0): #正确率计算和保存模型
                 #print(i)
                 if train:
-                    print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, 100, right / 100))
+                    print("All {}  right {} loss is {}  当前epoch训练{}个样本 当前正确率{}".format(All, right, loss, All, right / All))
                 else:
-                    print("All {}  right {}  当前epoch测试{}个样本 当前正确率{}".format(All, right, 100, right / 100))
+                    print("All {}  right {}  当前epoch测试{}个样本 当前正确率{}".format(All, right, All, right / All))
                 #torch.save(deepModel, modelPath)
                 total, correct = total + 100, correct + right
-                #acc.append(right / All)
+                acc.append(right / All)
                 if i % 1000 == 0:
                     if train:
                         torch.save(deepModel.state_dict(), modelPath)
-                    '''
-                    accDa = pd.DataFrame({'withGAT':acc})
+                        print('save success')
+                    accDa = pd.DataFrame({'k=5,dis=500':acc})
                     acc.clear()
                     accDa.to_csv(csvPath, mode='a', header=True, index=None)
-                    '''
+                    
                     print('total  {}'.format(total))
     
                 All, right = 0, 0
