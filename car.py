@@ -396,7 +396,7 @@ def run(train=True, maxNodes=20):
                     if train:
                         torch.save(deepModel.state_dict(), modelPath)
                         print('save success')
-                    accDa = pd.DataFrame({'k=5,dis=500':acc})
+                    accDa = pd.DataFrame({'withoutGAT':acc})
                     acc.clear()
                     accDa.to_csv(csvPath, mode='a', header=True, index=None)
                     
